@@ -1,0 +1,29 @@
+[project]
+name = "chatterbox-inference"
+version = "0.1.0"
+description = "TTS inference server with FastAPI and ZMQ streaming support"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "chatterbox-tts>=0.1.6",
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "websockets>=13.0",
+    "pyzmq>=26.0",
+    "click>=8.1.0",
+    "pydantic>=2.0",
+    "python-multipart>=0.0.9",
+    "aiosqlite>=0.20.0",
+    "onnxruntime<1.20.0",
+    "onnx<1.17",
+    "ml_dtypes<0.5",
+    "setuptools>=80.9.0",
+    "peft>=0.18.0",
+]
+
+[project.scripts]
+chatterbox-inference = "chatterbox_inference.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

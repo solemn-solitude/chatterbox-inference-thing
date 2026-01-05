@@ -1,0 +1,16 @@
+[project]
+name = "chatterbox-inference-client"
+version = "0.1.0"
+description = "Client library for Chatterbox Inference TTS server"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "pyzmq>=26.0",
+    "requests>=2.31.0",
+    "websockets>=13.0",
+    "pydantic>=2.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
