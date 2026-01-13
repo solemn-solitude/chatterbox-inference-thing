@@ -24,6 +24,28 @@ async def handle_health(client_id: bytes, send_message):
     await send_message(client_id, b"response", json.dumps(response).encode('utf-8'))
 
 
+async def handle_ready(client_id: bytes, send_message):
+    """Handle readiness check request.
+    
+    Args:
+        client_id: Client identity
+        send_message: Callback to send messages
+    """
+    status = ModelService.get_model_status()
+    
+    ready = (
+        status["model_loaded"] and 
+        status["voice_dir_accessible"] and 
+        status["database_accessible"]
+    )
+    
+    response = {
+        "ready": ready,
+        **status
+    }
+    await send_message(client_id, b"response", json.dumps(response).encode('utf-8'))
+
+
 async def handle_model_unload(client_id: bytes, send_message):
     """Handle model unload request.
     

@@ -6,6 +6,11 @@ from typing import Iterator, Dict, Any, Optional
 
 from .base import TTSClient
 from .exceptions import ConnectionError, AuthenticationError, RequestError, StreamingError
+from .schemas import (
+    TTSRequest, VoiceConfig, VoiceListResponse, 
+    VoiceUploadResponse, VoiceDeleteResponse,
+    HealthResponse, ReadyResponse
+)
 
 
 class ZMQClient(TTSClient):
@@ -134,11 +139,11 @@ class ZMQClient(TTSClient):
                 else:
                     raise ConnectionError(f"ZMQ error: {e}")
     
-    def list_voices(self) -> Dict[str, Any]:
+    def list_voices(self) -> VoiceListResponse:
         """List available voices.
         
         Returns:
-            Dictionary with voices information
+            VoiceListResponse with typed voice information
         """
         request = {
             "type": "list_voices",
@@ -157,21 +162,178 @@ class ZMQClient(TTSClient):
                     error_data = json.loads(data.decode('utf-8'))
                     raise RequestError(error_data.get("error", "Unknown error"))
                 elif msg_type == b"response":
-                    return json.loads(data.decode('utf-8'))
+                    return VoiceListResponse.from_dict(json.loads(data.decode('utf-8')))
             
             raise RequestError("Invalid response format")
             
         except zmq.ZMQError as e:
             raise ConnectionError(f"Failed to list voices: {e}")
     
-    def health_check(self) -> Dict[str, Any]:
+    def health_check(self) -> HealthResponse:
         """Check server health.
         
         Returns:
-            Health status dictionary
+            HealthResponse with typed health status
         """
         request = {
             "type": "health",
+            "api_key": self.api_key
+        }
+        
+        try:
+            self.socket.send_multipart([b"", json.dumps(request).encode('utf-8')])
+            message = self.socket.recv_multipart()
+            
+            if len(message) >= 3:
+                msg_type = message[1]
+                data = message[2]
+                
+                if msg_type == b"error":
+                    error_data = json.loads(data.decode('utf-8'))
+                    raise RequestError(error_data.get("error", "Unknown error"))
+                elif msg_type == b"response":
+                    return HealthResponse.from_dict(json.loads(data.decode('utf-8')))
+            
+            raise RequestError("Invalid response format")
+            
+        except zmq.ZMQError as e:
+            raise ConnectionError(f"Health check failed: {e}")
+    
+    def ready_check(self) -> ReadyResponse:
+        """Check server readiness.
+        
+        Returns:
+            ReadyResponse with typed readiness status
+        """
+        request = {
+            "type": "ready",
+            "api_key": self.api_key
+        }
+        
+        try:
+            self.socket.send_multipart([b"", json.dumps(request).encode('utf-8')])
+            message = self.socket.recv_multipart()
+            
+            if len(message) >= 3:
+                msg_type = message[1]
+                data = message[2]
+                
+                if msg_type == b"error":
+                    error_data = json.loads(data.decode('utf-8'))
+                    raise RequestError(error_data.get("error", "Unknown error"))
+                elif msg_type == b"response":
+                    return ReadyResponse.from_dict(json.loads(data.decode('utf-8')))
+            
+            raise RequestError("Invalid response format")
+            
+        except zmq.ZMQError as e:
+            raise ConnectionError(f"Readiness check failed: {e}")
+    
+    def upload_voice(
+        self,
+        voice_id: str,
+        audio_file_path: str,
+        sample_rate: int
+    ) -> VoiceUploadResponse:
+        """Upload a voice reference file.
+        
+        Args:
+            voice_id: Unique identifier for the voice
+            audio_file_path: Path to WAV audio file
+            sample_rate: Sample rate of the audio
+            
+        Returns:
+            VoiceUploadResponse with typed upload result
+        """
+        import base64
+        
+        # Read audio file and encode to base64
+        try:
+            with open(audio_file_path, 'rb') as f:
+                audio_data = f.read()
+            audio_b64 = base64.b64encode(audio_data).decode('utf-8')
+        except FileNotFoundError:
+            raise RequestError(f"Audio file not found: {audio_file_path}")
+        except Exception as e:
+            raise RequestError(f"Failed to read audio file: {e}")
+        
+        request = {
+            "type": "upload_voice",
+            "api_key": self.api_key,
+            "voice_id": voice_id,
+            "sample_rate": sample_rate,
+            "audio_data": audio_b64
+        }
+        
+        try:
+            self.socket.send_multipart([b"", json.dumps(request).encode('utf-8')])
+            message = self.socket.recv_multipart()
+            
+            if len(message) >= 3:
+                msg_type = message[1]
+                data = message[2]
+                
+                if msg_type == b"error":
+                    error_data = json.loads(data.decode('utf-8'))
+                    error_msg = error_data.get("error", "Unknown error")
+                    
+                    if "already exists" in error_msg:
+                        raise RequestError(f"Voice ID '{voice_id}' already exists")
+                    raise RequestError(error_msg)
+                elif msg_type == b"response":
+                    return VoiceUploadResponse.from_dict(json.loads(data.decode('utf-8')))
+            
+            raise RequestError("Invalid response format")
+            
+        except zmq.ZMQError as e:
+            raise ConnectionError(f"Failed to upload voice: {e}")
+    
+    def delete_voice(self, voice_id: str) -> VoiceDeleteResponse:
+        """Delete a voice reference.
+        
+        Args:
+            voice_id: Voice identifier
+            
+        Returns:
+            VoiceDeleteResponse with typed deletion result
+        """
+        request = {
+            "type": "delete_voice",
+            "api_key": self.api_key,
+            "voice_id": voice_id
+        }
+        
+        try:
+            self.socket.send_multipart([b"", json.dumps(request).encode('utf-8')])
+            message = self.socket.recv_multipart()
+            
+            if len(message) >= 3:
+                msg_type = message[1]
+                data = message[2]
+                
+                if msg_type == b"error":
+                    error_data = json.loads(data.decode('utf-8'))
+                    error_msg = error_data.get("error", "Unknown error")
+                    
+                    if "not found" in error_msg:
+                        raise RequestError(f"Voice '{voice_id}' not found")
+                    raise RequestError(error_msg)
+                elif msg_type == b"response":
+                    return VoiceDeleteResponse.from_dict(json.loads(data.decode('utf-8')))
+            
+            raise RequestError("Invalid response format")
+            
+        except zmq.ZMQError as e:
+            raise ConnectionError(f"Failed to delete voice: {e}")
+    
+    def unload_model(self) -> Dict[str, Any]:
+        """Manually unload TTS model from memory.
+        
+        Returns:
+            Unload response dictionary
+        """
+        request = {
+            "type": "model_unload",
             "api_key": self.api_key
         }
         
@@ -192,7 +354,7 @@ class ZMQClient(TTSClient):
             raise RequestError("Invalid response format")
             
         except zmq.ZMQError as e:
-            raise ConnectionError(f"Health check failed: {e}")
+            raise ConnectionError(f"Failed to unload model: {e}")
     
     def close(self):
         """Close ZMQ connection."""

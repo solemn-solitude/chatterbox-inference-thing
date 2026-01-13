@@ -1,8 +1,11 @@
 """Base interface for TTS clients."""
 
 from abc import ABC, abstractmethod
-from typing import Iterator, Dict, Any, Optional
+from typing import Iterator, Dict, Any, Optional, TYPE_CHECKING
 from pathlib import Path
+
+if TYPE_CHECKING:
+    from .schemas import VoiceListResponse, HealthResponse
 
 
 class TTSClient(ABC):
@@ -48,20 +51,20 @@ class TTSClient(ABC):
         pass
     
     @abstractmethod
-    def list_voices(self) -> Dict[str, Any]:
+    def list_voices(self) -> 'VoiceListResponse':
         """List available voices.
         
         Returns:
-            Dictionary with voices information
+            VoiceListResponse with voices information
         """
         pass
     
     @abstractmethod
-    def health_check(self) -> Dict[str, Any]:
+    def health_check(self) -> 'HealthResponse':
         """Check server health.
         
         Returns:
-            Health status dictionary
+            HealthResponse with health status
         """
         pass
     

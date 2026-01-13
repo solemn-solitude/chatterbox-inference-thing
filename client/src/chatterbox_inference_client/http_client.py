@@ -7,6 +7,11 @@ from urllib.parse import urljoin
 
 from .base import TTSClient
 from .exceptions import ConnectionError, AuthenticationError, RequestError, StreamingError
+from .schemas import (
+    TTSRequest, VoiceConfig, VoiceListResponse, 
+    VoiceUploadResponse, VoiceDeleteResponse,
+    HealthResponse, ReadyResponse
+)
 
 
 class HTTPClient(TTSClient):
@@ -52,29 +57,27 @@ class HTTPClient(TTSClient):
         Yields:
             Audio data chunks
         """
-        # Build request
-        request_data = {
-            "text": text,
-            "voice_mode": voice_mode,
-            "voice_config": {
-                "speed": speed
-            },
-            "audio_format": audio_format,
-            "use_turbo": use_turbo,
-        }
+        # Build request using dataclass
+        voice_config = VoiceConfig(
+            voice_name=voice_name,
+            voice_id=voice_id,
+            speed=speed
+        )
         
-        if voice_name:
-            request_data["voice_config"]["voice_name"] = voice_name
-        if voice_id:
-            request_data["voice_config"]["voice_id"] = voice_id
-        if sample_rate:
-            request_data["sample_rate"] = sample_rate
+        request = TTSRequest(
+            text=text,
+            voice_mode=voice_mode,
+            voice_config=voice_config,
+            audio_format=audio_format,
+            sample_rate=sample_rate,
+            use_turbo=use_turbo
+        )
         
         # Make streaming request
         url = urljoin(self.server_url, "/tts/synthesize")
         
         try:
-            response = self.session.post(url, json=request_data, stream=True)
+            response = self.session.post(url, json=request.to_dict(), stream=True)
             
             # Check for errors
             if response.status_code == 401 or response.status_code == 403:
@@ -100,11 +103,11 @@ class HTTPClient(TTSClient):
         except requests.exceptions.RequestException as e:
             raise RequestError(f"Request failed: {e}")
     
-    def list_voices(self) -> Dict[str, Any]:
+    def list_voices(self) -> VoiceListResponse:
         """List available voices.
         
         Returns:
-            Dictionary with voices information
+            VoiceListResponse with typed voice information
         """
         url = urljoin(self.server_url, "/voices/list")
         
@@ -116,16 +119,16 @@ class HTTPClient(TTSClient):
             elif response.status_code != 200:
                 raise RequestError(f"HTTP {response.status_code}: {response.text}")
             
-            return response.json()
+            return VoiceListResponse.from_dict(response.json())
             
         except requests.exceptions.RequestException as e:
             raise ConnectionError(f"Failed to list voices: {e}")
     
-    def health_check(self) -> Dict[str, Any]:
+    def health_check(self) -> HealthResponse:
         """Check server health.
         
         Returns:
-            Health status dictionary
+            HealthResponse with typed health status
         """
         url = urljoin(self.server_url, "/health")
         
@@ -136,17 +139,36 @@ class HTTPClient(TTSClient):
             if response.status_code != 200:
                 raise RequestError(f"HTTP {response.status_code}")
             
-            return response.json()
+            return HealthResponse.from_dict(response.json())
             
         except requests.exceptions.RequestException as e:
             raise ConnectionError(f"Health check failed: {e}")
+    
+    def ready_check(self) -> ReadyResponse:
+        """Check server readiness.
+        
+        Returns:
+            ReadyResponse with typed readiness status
+        """
+        url = urljoin(self.server_url, "/ready")
+        
+        try:
+            response = self.session.get(url, timeout=5)
+            
+            if response.status_code != 200:
+                raise RequestError(f"HTTP {response.status_code}")
+            
+            return ReadyResponse.from_dict(response.json())
+            
+        except requests.exceptions.RequestException as e:
+            raise ConnectionError(f"Readiness check failed: {e}")
     
     def upload_voice(
         self,
         voice_id: str,
         audio_file_path: str,
         sample_rate: int
-    ) -> Dict[str, Any]:
+    ) -> VoiceUploadResponse:
         """Upload a voice reference file.
         
         Args:
@@ -155,7 +177,7 @@ class HTTPClient(TTSClient):
             sample_rate: Sample rate of the audio
             
         Returns:
-            Upload response dictionary
+            VoiceUploadResponse with typed upload result
         """
         url = urljoin(self.server_url, "/voices/upload")
         
@@ -182,21 +204,21 @@ class HTTPClient(TTSClient):
                 except ValueError:
                     raise RequestError(f"HTTP {response.status_code}")
             
-            return response.json()
+            return VoiceUploadResponse.from_dict(response.json())
             
         except FileNotFoundError:
             raise RequestError(f"Audio file not found: {audio_file_path}")
         except requests.exceptions.RequestException as e:
             raise ConnectionError(f"Failed to upload voice: {e}")
     
-    def delete_voice(self, voice_id: str) -> Dict[str, Any]:
+    def delete_voice(self, voice_id: str) -> VoiceDeleteResponse:
         """Delete a voice reference.
         
         Args:
             voice_id: Voice identifier
             
         Returns:
-            Deletion response dictionary
+            VoiceDeleteResponse with typed deletion result
         """
         url = urljoin(self.server_url, f"/voices/{voice_id}")
         
@@ -210,10 +232,35 @@ class HTTPClient(TTSClient):
             elif response.status_code != 200:
                 raise RequestError(f"HTTP {response.status_code}")
             
-            return response.json()
+            return VoiceDeleteResponse.from_dict(response.json())
             
         except requests.exceptions.RequestException as e:
             raise ConnectionError(f"Failed to delete voice: {e}")
+    
+    def unload_model(self) -> Dict[str, Any]:
+        """Manually unload TTS model from memory.
+        
+        Returns:
+            Unload response dictionary
+        """
+        url = urljoin(self.server_url, "/model/unload")
+        
+        try:
+            response = self.session.post(url)
+            
+            if response.status_code == 401 or response.status_code == 403:
+                raise AuthenticationError("Invalid API key")
+            elif response.status_code != 200:
+                try:
+                    error_data = response.json()
+                    raise RequestError(error_data.get("detail", f"HTTP {response.status_code}"))
+                except ValueError:
+                    raise RequestError(f"HTTP {response.status_code}")
+            
+            return response.json()
+            
+        except requests.exceptions.RequestException as e:
+            raise ConnectionError(f"Failed to unload model: {e}")
     
     def close(self):
         """Close HTTP session."""

@@ -12,7 +12,15 @@ from ..auth import verify_api_key_zmq
 from ..tts import get_tts_engine, VoiceManager
 from ..services import VoiceService
 from ..utils.config import config
-from .zmq_routes import handle_synthesize, handle_list_voices, handle_health, handle_model_unload
+from .zmq_routes import (
+    handle_synthesize,
+    handle_list_voices,
+    handle_upload_voice,
+    handle_delete_voice,
+    handle_health,
+    handle_ready,
+    handle_model_unload
+)
 
 logger = logging.getLogger(__name__)
 
@@ -129,8 +137,14 @@ class ZMQServer:
                 await handle_synthesize(client_id, request_dict, self.voice_service, self._send_message)
             elif request_type == "list_voices":
                 await handle_list_voices(client_id, self.voice_service, self._send_message)
+            elif request_type == "upload_voice":
+                await handle_upload_voice(client_id, request_dict, self.voice_service, self._send_message)
+            elif request_type == "delete_voice":
+                await handle_delete_voice(client_id, request_dict, self.voice_service, self._send_message)
             elif request_type == "health":
                 await handle_health(client_id, self._send_message)
+            elif request_type == "ready":
+                await handle_ready(client_id, self._send_message)
             elif request_type == "model_unload":
                 await handle_model_unload(client_id, self._send_message)
             else:
