@@ -94,7 +94,7 @@ client.close()
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `CHATTERBOX_API_KEY` | API key for authentication | *Required* |
-| `CHATTERBOX_VOICE_DIR` | Voice storage directory | `~/.local/chatterbox-inference` |
+| `CHATTERBOX_VOICE_DIR` | Voice storage directory | `~/.local/share/chatterbox-inference` |
 | `CHATTERBOX_FASTAPI_HOST` | FastAPI bind host | `0.0.0.0` |
 | `CHATTERBOX_FASTAPI_PORT` | FastAPI port | `20480` |
 | `CHATTERBOX_ZMQ_HOST` | ZMQ bind host | `*` |

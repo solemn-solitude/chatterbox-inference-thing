@@ -60,7 +60,18 @@ def run():
     is_flag=True,
     help='Enable auto-reload for development'
 )
-def fastapi(host, port, log_level, reload):
+@click.option(
+    '--offload-timeout',
+    default=None,
+    type=int,
+    help='Seconds of inactivity before offloading model (default: 600)'
+)
+@click.option(
+    '--keep-warm',
+    is_flag=True,
+    help='Keep model loaded in memory (disable auto-offloading)'
+)
+def fastapi(host, port, log_level, reload, offload_timeout, keep_warm):
     """Run FastAPI HTTP/WebSocket server."""
     # Apply config overrides
     if log_level:
@@ -69,6 +80,10 @@ def fastapi(host, port, log_level, reload):
         config.fastapi_host = host
     if port:
         config.fastapi_port = port
+    if offload_timeout is not None:
+        config.offload_timeout = offload_timeout
+    if keep_warm:
+        config.keep_warm = True
     
     # Setup logging
     setup_logging(config.log_level)
@@ -113,7 +128,18 @@ def fastapi(host, port, log_level, reload):
     default=None,
     help='Log level (default: from env or INFO)'
 )
-def zmq(host, port, log_level):
+@click.option(
+    '--offload-timeout',
+    default=None,
+    type=int,
+    help='Seconds of inactivity before offloading model (default: 600)'
+)
+@click.option(
+    '--keep-warm',
+    is_flag=True,
+    help='Keep model loaded in memory (disable auto-offloading)'
+)
+def zmq(host, port, log_level, offload_timeout, keep_warm):
     """Run ZMQ ROUTER server."""
     # Apply config overrides
     if log_level:
@@ -122,6 +148,10 @@ def zmq(host, port, log_level):
         config.zmq_host = host
     if port:
         config.zmq_port = port
+    if offload_timeout is not None:
+        config.offload_timeout = offload_timeout
+    if keep_warm:
+        config.keep_warm = True
     
     # Setup logging
     setup_logging(config.log_level)
@@ -164,6 +194,9 @@ def config_info():
     click.echo(f"\nZMQ Settings:")
     click.echo(f"  Host: {config.zmq_host}")
     click.echo(f"  Port: {config.zmq_port}")
+    click.echo(f"\nModel Settings:")
+    click.echo(f"  Offload Timeout: {config.offload_timeout}s")
+    click.echo(f"  Keep Warm: {'Yes' if config.keep_warm else 'No'}")
     click.echo(f"\nLog Level: {config.log_level}")
     click.echo("=" * 40)
 

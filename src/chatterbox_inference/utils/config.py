@@ -14,7 +14,7 @@ class Config:
         self.voice_dir = Path(
             os.getenv(
                 "CHATTERBOX_VOICE_DIR",
-                os.path.expanduser("~/.local/chatterbox-inference")
+                os.path.expanduser("~/.local/share/chatterbox-inference")
             )
         )
         self.voice_audio_dir = self.voice_dir / "voices"
@@ -31,6 +31,10 @@ class Config:
         
         # Logging
         self.log_level = os.getenv("CHATTERBOX_LOG_LEVEL", "INFO")
+        
+        # Model offloading settings
+        self.offload_timeout = int(os.getenv("CHATTERBOX_OFFLOAD_TIMEOUT", "600"))  # 10 minutes default
+        self.keep_warm = os.getenv("CHATTERBOX_KEEP_WARM", "false").lower() in ("true", "1", "yes")
         
     def ensure_directories(self):
         """Ensure required directories exist."""

@@ -17,6 +17,12 @@ class VoiceConfig(BaseModel):
     # Common settings
     speed: float = Field(1.0, ge=0.1, le=3.0, description="Speech speed multiplier")
     
+    # ChatterboxTTS generation parameters
+    exaggeration: float = Field(0.5, ge=0.0, le=1.0, description="Exaggeration level for expressiveness")
+    cfg_weight: float = Field(0.5, ge=0.0, le=1.0, description="Classifier-free guidance weight")
+    temperature: float = Field(0.8, ge=0.1, le=2.0, description="Sampling temperature for variability")
+    repetition_penalty: float = Field(1.2, ge=1.0, le=2.0, description="Penalty for repetitive tokens")
+    
     @field_validator('voice_name', 'voice_id')
     @classmethod
     def validate_voice(cls, v):
