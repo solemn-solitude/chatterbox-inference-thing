@@ -35,11 +35,9 @@ class HTTPClient(TTSClient):
         self,
         text: str,
         voice_mode: str = "default",
-        voice_name: Optional[str] = None,
-        voice_id: Optional[str] = None,
+        voice_config: Optional[VoiceConfig] = None,
         audio_format: str = "pcm",
         sample_rate: Optional[int] = None,
-        speed: float = 1.0,
         use_turbo: bool = False,
     ) -> Iterator[bytes]:
         """Synthesize speech from text with streaming.
@@ -47,22 +45,17 @@ class HTTPClient(TTSClient):
         Args:
             text: Text to synthesize
             voice_mode: "default" or "clone"
-            voice_name: Name of default voice (for default mode)
-            voice_id: ID of cloned voice (for clone mode)
+            voice_config: Voice configuration object (contains voice_name, voice_id, speed, exaggeration, cfg_weight, etc.)
             audio_format: "pcm" or "vorbis"
             sample_rate: Output sample rate
-            speed: Speech speed multiplier
             use_turbo: Use ChatterboxTurboTTS instead of ChatterboxTTS
             
         Yields:
             Audio data chunks
         """
-        # Build request using dataclass
-        voice_config = VoiceConfig(
-            voice_name=voice_name,
-            voice_id=voice_id,
-            speed=speed
-        )
+        # Use default voice_config if none provided
+        if voice_config is None:
+            voice_config = VoiceConfig()
         
         request = TTSRequest(
             text=text,

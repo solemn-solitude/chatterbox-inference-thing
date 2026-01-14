@@ -5,7 +5,7 @@ from typing import Iterator, Dict, Any, Optional, TYPE_CHECKING
 from pathlib import Path
 
 if TYPE_CHECKING:
-    from .schemas import VoiceListResponse, HealthResponse
+    from .schemas import VoiceListResponse, HealthResponse, VoiceConfig
 
 
 class TTSClient(ABC):
@@ -26,11 +26,9 @@ class TTSClient(ABC):
         self,
         text: str,
         voice_mode: str = "default",
-        voice_name: Optional[str] = None,
-        voice_id: Optional[str] = None,
+        voice_config: Optional['VoiceConfig'] = None,
         audio_format: str = "pcm",
         sample_rate: Optional[int] = None,
-        speed: float = 1.0,
         use_turbo: bool = False,
     ) -> Iterator[bytes]:
         """Synthesize speech from text with streaming.
@@ -38,11 +36,9 @@ class TTSClient(ABC):
         Args:
             text: Text to synthesize
             voice_mode: "default" or "clone"
-            voice_name: Name of default voice (for default mode)
-            voice_id: ID of cloned voice (for clone mode)
+            voice_config: Voice configuration object (contains voice_name, voice_id, speed, exaggeration, cfg_weight, etc.)
             audio_format: "pcm" or "vorbis"
             sample_rate: Output sample rate
-            speed: Speech speed multiplier
             use_turbo: Use ChatterboxTurboTTS instead of ChatterboxTTS
             
         Yields:

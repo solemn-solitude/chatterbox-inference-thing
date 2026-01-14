@@ -7,6 +7,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../client/src'))
 
 from chatterbox_inference_client import Client
+from chatterbox_inference_client.schemas import VoiceConfig
 
 
 def example_http_client():
@@ -27,16 +28,25 @@ def example_http_client():
         health = client.health_check()
         print(f"   Status: {health['status']}")
         
-        # Synthesize speech
+        # Synthesize speech with custom voice config
         print("\n2. Synthesizing speech...")
         audio_data = b""
         chunk_count = 0
         
+        # Create voice config with custom settings
+        voice_config = VoiceConfig(
+            voice_name="default",
+            speed=1.0,
+            temperature=0.8,
+            exaggeration=0.5,
+            cfg_weight=0.5
+        )
+        
         for chunk in client.synthesize(
             text="Hello! This is a test of the Chatterbox TTS system.",
             voice_mode="default",
-            audio_format="pcm",
-            speed=1.0
+            voice_config=voice_config,
+            audio_format="pcm"
         ):
             audio_data += chunk
             chunk_count += 1
@@ -78,16 +88,23 @@ def example_zmq_client():
         print(f"   Status: {health['status']}")
         print(f"   Model loaded: {health.get('model_loaded', 'unknown')}")
         
-        # Synthesize speech
+        # Synthesize speech with higher speed and expressiveness
         print("\n2. Synthesizing speech via ZMQ...")
         audio_data = b""
         chunk_count = 0
         
+        # Custom voice config with increased speed and exaggeration
+        voice_config = VoiceConfig(
+            speed=1.2,
+            exaggeration=0.7,
+            temperature=0.9
+        )
+        
         for chunk in client.synthesize(
             text="This is streaming over ZMQ for high performance!",
             voice_mode="default",
-            audio_format="pcm",
-            speed=1.2
+            voice_config=voice_config,
+            audio_format="pcm"
         ):
             audio_data += chunk
             chunk_count += 1

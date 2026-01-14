@@ -39,11 +39,9 @@ class ZMQClient(TTSClient):
         self,
         text: str,
         voice_mode: str = "default",
-        voice_name: Optional[str] = None,
-        voice_id: Optional[str] = None,
+        voice_config: Optional[VoiceConfig] = None,
         audio_format: str = "pcm",
         sample_rate: Optional[int] = None,
-        speed: float = 1.0,
         use_turbo: bool = False,
     ) -> Iterator[bytes]:
         """Synthesize speech from text with streaming.
@@ -51,33 +49,29 @@ class ZMQClient(TTSClient):
         Args:
             text: Text to synthesize
             voice_mode: "default" or "clone"
-            voice_name: Name of default voice (for default mode)
-            voice_id: ID of cloned voice (for clone mode)
+            voice_config: Voice configuration object (contains voice_name, voice_id, speed, exaggeration, cfg_weight, etc.)
             audio_format: "pcm" or "vorbis"
             sample_rate: Output sample rate
-            speed: Speech speed multiplier
             use_turbo: Use ChatterboxTurboTTS instead of ChatterboxTTS
             
         Yields:
             Audio data chunks
         """
+        # Use default voice_config if none provided
+        if voice_config is None:
+            voice_config = VoiceConfig()
+        
         # Build request
         request = {
             "type": "synthesize",
             "api_key": self.api_key,
             "text": text,
             "voice_mode": voice_mode,
-            "voice_config": {
-                "speed": speed
-            },
+            "voice_config": voice_config.to_dict(),
             "audio_format": audio_format,
             "use_turbo": use_turbo,
         }
         
-        if voice_name:
-            request["voice_config"]["voice_name"] = voice_name
-        if voice_id:
-            request["voice_config"]["voice_id"] = voice_id
         if sample_rate:
             request["sample_rate"] = sample_rate
         
