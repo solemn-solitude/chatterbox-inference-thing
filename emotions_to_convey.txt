@@ -1,0 +1,137 @@
+# 100 Essential Emotions for Emotional Prosody System
+# Revised to minimize synonyms and maximize prosodic diversity
+
+## POSITIVE - HIGH ENERGY (1-12)
+1. excited
+2. enthusiastic
+3. joyful
+4. energized
+5. exhilarated
+6. triumphant
+7. proud
+8. confident
+9. determined
+10. inspired
+11. bold
+12. amused
+
+## POSITIVE - LOW ENERGY (13-20)
+13. calm
+14. peaceful
+15. content
+16. relaxed
+17. grateful
+18. relieved
+19. sleepy
+20. dreamlike
+
+## POSITIVE - INTIMATE/ROMANTIC (21-28)
+21. affectionate
+22. tender
+23. loving
+24. nurturing
+25. protective
+26. romantic
+27. yearning
+28. lustful
+
+## POSITIVE - SOCIAL/PLAYFUL (29-35)
+29. playful
+30. teasing
+31. flirtatious
+32. mischievous
+33. entertained
+34. intrigued
+35. fascinated
+
+## NEUTRAL - FUNCTIONAL (36-43)
+36. neutral
+37. informative
+38. analytical
+39. curious
+40. contemplative
+41. focused
+42. patient
+43. understanding
+
+## NEUTRAL - SOCIAL (44-50)
+44. polite
+45. formal
+46. diplomatic
+47. cautious
+48. assertive
+49. matter-of-fact
+50. detached
+
+## NEGATIVE - HIGH INTENSITY (51-60)
+51. angry
+52. furious
+53. frustrated
+54. irritated
+55. outraged
+56. defiant
+57. bitter
+58. resentful
+59. disgusted
+60. contemptuous
+
+## NEGATIVE - LOW ENERGY (61-68)
+61. sad
+62. melancholic
+63. discouraged
+64. hopeless
+65. exhausted
+66. apathetic
+67. numb
+68. resigned
+
+## NEGATIVE - ANXIETY/VULNERABILITY (69-77)
+69. anxious
+70. worried
+71. fearful
+72. panicked
+73. horrified
+74. insecure
+75. vulnerable
+76. embarrassed
+77. ashamed
+
+## NEGATIVE - SOCIAL DISCOMFORT (78-85)
+78. guilty
+79. awkward
+80. defensive
+81. dismissive
+82. condescending
+83. sarcastic
+84. cynical
+85. jealous
+
+## CONFUSION/UNCERTAINTY (86-91)
+86. confused
+87. perplexed
+88. uncertain
+89. hesitant
+90. skeptical
+91. distracted
+
+## COMPLEX/NUANCED (92-100)
+92. surprised
+93. shocked
+94. amazed
+95. bored
+96. impatient
+97. restless
+98. overwhelmed
+99. wistful
+100. nostalgic
+
+---
+## Notes on Coverage:
+- Removed obvious synonyms (e.g., enraged/jubilant/exasperated)
+- Added missing basic emotions: disgust, contempt, shame, guilt, envy, boredom
+- Included NSFW/intimate states: lustful, yearning (important for romantic contexts)
+- Added energy-level states: energized, exhausted, sleepy, restless
+- Included social dynamics: defensive, condescending, sarcastic, cynical
+- Added power dynamics: defiant, protective, assertive, insecure
+- Each emotion should produce DISTINCT prosodic signatures
+- Focus on conversational/companion AI contexts, not theatrical extremes
