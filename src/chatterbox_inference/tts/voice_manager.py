@@ -7,7 +7,7 @@ from typing import Optional, BinaryIO
 import logging
 
 from ..models.database import VoiceDatabase
-from ..utils.config import config
+from ..utils.config import CONFIG
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +22,7 @@ class VoiceManager:
             db: Voice database instance
         """
         self.db = db
-        self.voice_dir = config.voice_audio_dir
+        self.voice_dir = CONFIG.voice_audio_dir
         
     async def upload_voice(
         self,
@@ -108,6 +108,58 @@ class VoiceManager:
             logger.info(f"Voice deleted: {voice_id}")
         
         return success
+    
+    async def rename_voice(self, old_voice_id: str, new_voice_id: str) -> bool:
+        """Rename a voice reference.
+        
+        Args:
+            old_voice_id: Current voice identifier
+            new_voice_id: New voice identifier
+            
+        Returns:
+            True if renamed successfully, False if failed
+        """
+        # Get voice info for old voice
+        voice_info = await self.db.get_voice(old_voice_id)
+        if not voice_info:
+            logger.warning(f"Voice not found for rename: {old_voice_id}")
+            return False
+        
+        # Check if new voice ID already exists
+        if await self.db.voice_exists(new_voice_id):
+            logger.warning(f"Cannot rename: voice '{new_voice_id}' already exists")
+            return False
+        
+        # Rename file
+        old_filename = voice_info['filename']
+        old_filepath = self.voice_dir / old_filename
+        new_filename = f"{new_voice_id}.wav"
+        new_filepath = self.voice_dir / new_filename
+        
+        try:
+            if old_filepath.exists():
+                old_filepath.rename(new_filepath)
+                logger.info(f"Renamed voice file: {old_filename} -> {new_filename}")
+            
+            # Update database
+            success = await self.db.rename_voice(old_voice_id, new_voice_id)
+            
+            if success:
+                logger.info(f"Voice renamed successfully: {old_voice_id} -> {new_voice_id}")
+            else:
+                # Rollback file rename if database update failed
+                if new_filepath.exists():
+                    new_filepath.rename(old_filepath)
+                    logger.error(f"Rolled back file rename due to database error")
+            
+            return success
+            
+        except Exception as e:
+            logger.error(f"Error renaming voice {old_voice_id}: {e}")
+            # Try to rollback file rename
+            if new_filepath.exists() and not old_filepath.exists():
+                new_filepath.rename(old_filepath)
+            return False
     
     async def load_voice_reference(self, voice_id: str) -> Optional[np.ndarray]:
         """Load voice reference audio for cloning.

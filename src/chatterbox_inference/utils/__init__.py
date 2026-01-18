@@ -1,5 +1,5 @@
 """Utility modules for Chatterbox Inference."""
 
-from .config import config
+from .config import CONFIG
 
-__all__ = ["config"]
+__all__ = ["CONFIG"]

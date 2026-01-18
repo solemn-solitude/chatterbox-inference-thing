@@ -9,7 +9,7 @@ from fastapi.responses import StreamingResponse
 from ...models import TTSRequest
 from ...auth import verify_api_key
 from ...services import TTSService, VoiceService
-from ...utils.config import config
+from ...utils.config import CONFIG
 from ...utils.audio_utils import AudioStreamEncoder
 from ..dependencies import get_voice_service
 
@@ -69,7 +69,7 @@ async def websocket_tts(websocket: WebSocket):
         
         # Verify API key
         api_key = data.get("api_key")
-        if api_key != config.api_key:
+        if api_key != CONFIG.api_key:
             await websocket.send_json({"error": "Invalid API key"})
             await websocket.close(code=1008)
             return

@@ -19,6 +19,12 @@ dependencies = [
     "ml_dtypes<0.5",
     "setuptools>=80.9.0",
     "peft>=0.18.0",
+    # Acoustic feature extraction (Phase 3)
+    "torchaudio>=2.1.0",
+    "librosa>=0.10.0",
+    "pyworld>=0.3.4",
+    "crepe>=0.0.13",
+    "scipy>=1.11.0",
 ]
 
 [project.scripts]

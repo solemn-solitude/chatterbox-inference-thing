@@ -6,9 +6,14 @@ import tempfile
 import asyncio
 from pathlib import Path
 from typing import Optional, AsyncIterator, Tuple
-from datetime import datetime, timedelta
+from datetime import datetime
+from textwrap import dedent
 import logging
+from scipy import signal
+from chatterbox.tts import ChatterboxTTS
+from chatterbox.tts_turbo import ChatterboxTurboTTS
 
+from ..utils.config import CONFIG
 from ..utils.audio_utils import encode_wav_complete
 
 logger = logging.getLogger(__name__)
@@ -28,7 +33,6 @@ def resample_audio_for_speed(audio: np.ndarray, speed: float) -> np.ndarray:
         return audio
     
     try:
-        from scipy import signal
         
         # Calculate new length
         new_length = int(len(audio) / speed)
@@ -41,7 +45,7 @@ def resample_audio_for_speed(audio: np.ndarray, speed: float) -> np.ndarray:
         resampled = signal.resample(audio, new_length)
         
         # Ensure float32 and proper range
-        resampled = np.clip(resampled, -1.0, 1.0).astype(np.float32)
+        resampled = np.clip(np.asarray(resampled), -1.0, 1.0).astype(np.float32)
         
         logger.debug(f"Resampled audio from {len(audio)} to {len(resampled)} samples (speed={speed})")
         return resampled
@@ -64,8 +68,8 @@ class TTSEngine:
             inactivity_timeout: Seconds of inactivity before offloading model (default: 600 = 10 minutes)
             keep_warm: If True, keep model loaded in memory (disable auto-offloading)
         """
-        self.model_regular: Optional[object] = None
-        self.model_turbo: Optional[object] = None
+        self.model_regular: ChatterboxTTS | None = None
+        self.model_turbo: ChatterboxTurboTTS | None = None
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self._default_sr: int = 24000  # ChatterboxTTS default sample rate
         
@@ -78,15 +82,23 @@ class TTSEngine:
         
     async def initialize(self):
         """Initialize and load the TTS model (regular by default)."""
-        logger.info("Loading ChatterboxTTS model on {}...".format(self.device))
+        logger.info(
+            dedent(f"""
+        Loading ChatterboxTTS model on {self.device}...
+        ==================================""")
+        )
         try:
-            from chatterbox.tts import ChatterboxTTS
             self.model_regular = ChatterboxTTS.from_pretrained(device=self.device)
             
             # Get sample rate from model
             self._default_sr = getattr(self.model_regular, 'sr', 24000)
             
-            logger.info("ChatterboxTTS model loaded successfully. Sample rate: {}".format(self._default_sr))
+            logger.info(
+                dedent(f"""
+        ChatterboxTTS model loaded successfully
+        Sample rate: {self._default_sr} Hz
+        ==================================""")
+            )
             
             # Update activity time and start monitoring
             self.last_activity_time = datetime.now()
@@ -109,14 +121,39 @@ class TTSEngine:
             try:
                 from chatterbox.tts_turbo import ChatterboxTurboTTS
                 self.model_turbo = ChatterboxTurboTTS.from_pretrained(device=self.device)
+                
+                # Update default sample rate from turbo model if not set from regular model
+                turbo_sr = getattr(self.model_turbo, 'sr', 24000)
+                if self._default_sr != turbo_sr:
+                    logger.info(f"ChatterboxTurboTTS sample rate: {turbo_sr} Hz (regular: {self._default_sr} Hz)")
+                
                 logger.info("ChatterboxTurboTTS model loaded successfully")
             except Exception as e:
                 logger.error("Failed to load ChatterboxTurboTTS model: {}".format(e))
                 raise
+        
+        # Update last activity time
+        self.last_activity_time = datetime.now()
+        self._is_offloaded = False
     
     @property
     def sample_rate(self) -> int:
         """Get the model's default sample rate."""
+        return self._default_sr
+    
+    def get_model_sample_rate(self, use_turbo: bool = False) -> int:
+        """Get the sample rate for a specific model.
+        
+        Args:
+            use_turbo: Whether to get turbo model's sample rate
+            
+        Returns:
+            Sample rate in Hz
+        """
+        if use_turbo and self.model_turbo is not None:
+            return getattr(self.model_turbo, 'sr', self._default_sr)
+        elif self.model_regular is not None:
+            return getattr(self.model_regular, 'sr', self._default_sr)
         return self._default_sr
     
     def is_loaded(self) -> bool:
@@ -188,13 +225,14 @@ class TTSEngine:
             raise
     
     async def _ensure_loaded(self):
-        """Ensure model is loaded, reload if offloaded."""
+        """Ensure regular model is loaded, reload if offloaded."""
         if self._is_offloaded or self.model_regular is None:
             logger.info("Model was offloaded, reloading...")
             await self.initialize()
         
         # Update last activity time
         self.last_activity_time = datetime.now()
+        self._is_offloaded = False
     
     async def synthesize_streaming(
         self,
@@ -228,20 +266,21 @@ class TTSEngine:
         Yields:
             Tuple of (audio_chunk, sample_rate)
         """
-        # Ensure model is loaded (will reload if offloaded)
-        await self._ensure_loaded()
-        
-        # Select model based on turbo flag
+        # Select and load only the needed model
         if use_turbo:
             await self._ensure_turbo_loaded()
             model = self.model_turbo
             model_name = "ChatterboxTurboTTS"
         else:
+            await self._ensure_loaded()
             model = self.model_regular
             model_name = "ChatterboxTTS"
         
+        
         try:
-            output_sr = sample_rate or self.sample_rate
+            # Use the correct sample rate for the selected model
+            model_sr = self.get_model_sample_rate(use_turbo)
+            output_sr = sample_rate or model_sr
             
             # Prepare audio prompt path if voice cloning is requested
             audio_prompt_path = None
@@ -252,8 +291,8 @@ class TTSEngine:
                     # Create temporary WAV file from voice reference
                     logger.info("Voice cloning mode: creating temporary reference audio file")
                     
-                    # Encode the numpy array as WAV
-                    wav_data = encode_wav_complete(voice_reference, self.sample_rate)
+                    # Encode the numpy array as WAV using the model's sample rate
+                    wav_data = encode_wav_complete(voice_reference, model_sr)
                     
                     # Save to temporary file
                     temp_file = tempfile.NamedTemporaryFile(
@@ -279,6 +318,12 @@ class TTSEngine:
                 # ChatterboxTTS.generate returns a single wav tensor/array
                 # The signature is: generate(text, repetition_penalty, min_p, top_p, 
                 #                            audio_prompt_path, exaggeration, cfg_weight, temperature)
+
+                if not model:
+                    logger.error("Model was not set. Could not do generation.")
+                    return
+
+
                 wav = model.generate(
                     text,
                     repetition_penalty=repetition_penalty,
@@ -396,9 +441,8 @@ def get_tts_engine() -> TTSEngine:
     """
     global tts_engine
     if tts_engine is None:
-        from ..utils.config import config
         tts_engine = TTSEngine(
-            inactivity_timeout=config.offload_timeout,
-            keep_warm=config.keep_warm
+            inactivity_timeout=CONFIG.offload_timeout,
+            keep_warm=CONFIG.keep_warm
         )
     return tts_engine

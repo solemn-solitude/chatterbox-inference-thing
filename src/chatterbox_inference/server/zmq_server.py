@@ -11,7 +11,7 @@ from ..models import VoiceDatabase
 from ..auth import verify_api_key_zmq
 from ..tts import get_tts_engine, VoiceManager
 from ..services import VoiceService
-from ..utils.config import config
+from ..utils.config import CONFIG
 from .zmq_routes import (
     handle_synthesize,
     handle_list_voices,
@@ -47,16 +47,16 @@ class ZMQServer:
         
         # Validate API key
         try:
-            config.validate_api_key()
+            CONFIG.validate_api_key()
         except ValueError as e:
             logger.error(str(e))
             raise
         
         # Ensure directories exist
-        config.ensure_directories()
+        CONFIG.ensure_directories()
         
         # Initialize database
-        self.db = VoiceDatabase(config.database_path)
+        self.db = VoiceDatabase(CONFIG.database_path)
         await self.db.initialize()
         
         # Initialize voice manager

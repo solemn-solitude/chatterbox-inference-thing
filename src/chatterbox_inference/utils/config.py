@@ -2,7 +2,6 @@
 
 import os
 from pathlib import Path
-from typing import Optional
 
 
 class Config:
@@ -52,4 +51,4 @@ class Config:
 
 
 # Global config instance
-config = Config()
+CONFIG = Config()

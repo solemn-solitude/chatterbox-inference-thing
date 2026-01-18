@@ -5,7 +5,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import Optional
 import logging
 
-from ..utils.config import config
+from ..utils.config import CONFIG
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +34,7 @@ async def verify_api_key(
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    if credentials.credentials != config.api_key:
+    if credentials.credentials != CONFIG.api_key:
         logger.warning(f"Invalid API key attempt")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -58,7 +58,7 @@ def verify_api_key_zmq(api_key: Optional[str]) -> bool:
         logger.warning("Missing API key in ZMQ request")
         return False
     
-    if api_key != config.api_key:
+    if api_key != CONFIG.api_key:
         logger.warning(f"Invalid API key in ZMQ request")
         return False
     

@@ -4,7 +4,7 @@ import logging
 from typing import Dict, Any
 
 from ..tts import get_tts_engine
-from ..utils.config import config
+from ..utils.config import CONFIG
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +47,6 @@ class ModelService:
         
         return {
             "model_loaded": tts_engine.is_loaded(),
-            "voice_dir_accessible": config.voice_audio_dir.exists(),
-            "database_accessible": config.database_path.exists(),
+            "voice_dir_accessible": CONFIG.voice_audio_dir.exists(),
+            "database_accessible": CONFIG.database_path.exists(),
         }

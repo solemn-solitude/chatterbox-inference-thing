@@ -235,7 +235,12 @@ Store anchor metadata in DB
 
 ### 2. Acoustic Feature Extraction
 
-**Purpose:** Extract measurable prosodic features from each anchor
+**Purpose:** Extract measurable prosodic features from each generated anchor for validation and quality control
+
+**IMPORTANT:** This is NOT for analyzing user audio/sentiment. Acoustic analysis is used to:
+- Validate that generated emotional anchors sound as intended
+- Extract quantitative features for coordinate verification
+- Provide post-generation quality control
 
 **Features to Extract:**
 - **Pitch**: Mean F0, F0 variance, F0 range, F0 contour slope
@@ -244,13 +249,20 @@ Store anchor metadata in DB
 - **Spectral**: Spectral centroid, spectral tilt, formant clarity
 - **Stability**: Coefficient of variation in pitch/energy over time
 
-**Tools:** 
-- `librosa` for acoustic analysis
-- `parselmouth` (Praat Python wrapper) for F0 extraction
-- Custom metrics
+**Modern Tools (Updated 2026):** 
+- **torchaudio** - PyTorch-native audio processing (GPU-accelerated, actively maintained)
+- **PyWorld** or **CREPE** - Modern pitch extraction (more accurate than Praat-based tools)
+- Custom metrics for emotional validation
+
+**Why These Tools:**
+- Active development and maintenance
+- Better performance and accuracy
+- GPU acceleration support
+- Cleaner integration with PyTorch-based TTS models
 
 **Outputs:**
 - Feature vector for each anchor
+- Validation metrics comparing target vs actual emotional characteristics
 
 ### 3. Coordinate Mapping System
 
@@ -392,7 +404,33 @@ def select_anchors_weighted(target_coords, k=3):
 
 ### 6. LLM Integration Interface
 
-**Purpose:** Accept emotional coordinates from external LLM
+**Purpose:** Accept emotional coordinates from external LLM orchestrator
+
+**IMPORTANT ARCHITECTURE NOTE:**
+
+This TTS service does NOT host or include an LLM. The emotional decision-making happens in the **external conversation orchestrator** where it belongs. Here's why:
+
+```
+User Audio → STT → Text
+                     ↓
+                  LLM Orchestrator (External - NOT in this app)
+                  - Has full conversation context
+                  - Understands user emotional state  
+                  - Makes pragmatic reasoning
+                  - Outputs: response text + emotional coordinates
+                     ↓
+                  This TTS Service
+                  - Receives text + coordinates
+                  - Selects appropriate anchor
+                  - Synthesizes emotionally appropriate audio
+```
+
+**Why This Separation:**
+- LLM needs conversation context (history, user state, relationship dynamics)
+- TTS shouldn't duplicate emotional reasoning
+- Clean separation of concerns: reasoning vs rendering
+- Allows different LLM backends without changing TTS
+- Reduces complexity and resource requirements
 
 **New API Endpoint:**
 ```http
@@ -401,25 +439,33 @@ Content-Type: application/json
 Authorization: Bearer <api-key>
 
 {
-  "text": "you are okay",
+  "text": "I understand this is difficult. Take your time.",
   "emotional_coords": {
-    "valence": 0.3,
-    "arousal": 0.2,
-    "tension": 0.1,
-    "stability": 0.9
+    "valence": 0.3,    // Slightly positive (supportive)
+    "arousal": 0.2,    // Low energy (calm)
+    "tension": 0.1,    // Relaxed (comforting)
+    "stability": 0.9   // Very stable (grounding)
   },
-  "base_voice_id": "neutral_companion",
+  "base_voice_id": "companion_voice",
   "audio_format": "pcm",
   "sample_rate": 24000
 }
 ```
 
 **Processing:**
-1. Receive coordinates from LLM
+1. Receive text and coordinates from external orchestrator
 2. Query emotional_anchors table for nearest match
 3. Load selected anchor voice reference
 4. Synthesize using `voice_mode="clone"` with selected anchor
-5. Stream audio back
+5. Stream audio back to orchestrator
+
+**Integration Examples:**
+
+The external orchestrator can use various strategies:
+- **LLM-based**: Prompt LLM to output coordinates based on conversation
+- **Rule-based**: Simple sentiment → coordinate mapping
+- **Hybrid**: Rules + LLM for complex cases
+- **Default**: Always use neutral coordinates if no emotion needed
 
 ### 7. Emotional Smoothing/Hysteresis
 
@@ -455,36 +501,40 @@ class EmotionalStateMachine:
 
 ### Phase 0: Foundation (Current Session)
 - [x] Read and understand ChatGPT conversation
-- [x] Explore existing Chatterbox codebase
+- [x] Explore existing Chatterbox codebase  
 - [x] Create this design document
 - [x] Create implementation roadmap
 - [x] Created emotion taxonomy (100 distinct emotions across 12 categories)
 - [x] Generated prompt templates SQL seed data
 
-### Phase 1: Database Extensions
-- [ ] Design `emotional_anchors` table schema
-- [ ] Extend `VoiceDatabase` class with emotional anchor methods
-- [ ] Add migration script for existing database
-- [ ] Create data models (Pydantic schemas) for emotional coordinates
-- [ ] Unit tests for database operations
+### Phase 1: Database Extensions ✅ COMPLETE
+- [x] Design `emotional_anchors` table schema
+- [x] Design `prompt_templates` table schema
+- [x] Create database migration system (`migrations.py`, `migrations_definition.py`)
+- [x] Extend `VoiceDatabase` class with emotional anchor methods
+- [x] Add migration script for existing database
+- [x] Create data models (Pydantic schemas) for emotional coordinates
+- [x] Create CLI commands for database management (`db migrate`, `db migration-status`, `db seed-templates`)
+- [x] Test database operations (migrations applied, 100 templates seeded)
 
-### Phase 2: Prompt Templates & Anchor Generation
-- [ ] Create prompt_templates database table
-- [ ] Import emotional prompts from external LLM (to avoid content policy restrictions)
-- [ ] Validate prompt templates (length, clarity, parameter ranges)
-- [ ] Create CLI command: `chatterbox-inference generate-anchors`
-- [ ] Implement batch generation system with optimal parameters
-- [ ] Add progress tracking and resumption
-- [ ] Organize generated files in directory structure
-- [ ] Create anchor validation tools (listen, analyze features)
-- [ ] Documentation for generation workflow
+### Phase 2: Prompt Templates & Anchor Generation ✅ COMPLETE
+- [x] Create prompt_templates database table
+- [x] Import emotional prompts from external LLM
+- [x] Validate prompt templates (length, clarity, parameter ranges)
+- [x] Create CLI command: `chatterbox-inference anchors generate`
+- [x] Implement batch generation system with optimal parameters
+- [x] Add progress tracking and logging
+- [x] Organize generated files in directory structure
+- [x] Create anchor listing tool: `chatterbox-inference anchors list`
+- [x] Documentation for generation workflow
 
-### Phase 3: Acoustic Feature Extraction
-- [ ] Add `librosa` and `parselmouth` dependencies
-- [ ] Implement feature extraction functions
-- [ ] Create analysis scripts for existing anchors
-- [ ] Validate feature extraction accuracy
-- [ ] Store extracted features in database
+### Phase 3: Acoustic Feature Extraction ✅ COMPLETE
+- [x] Add acoustic analysis dependencies (torchaudio, librosa, pyworld, crepe, scipy)
+- [x] Implement feature extraction module (`acoustic_features.py`)
+- [x] Create analysis CLI command (`chatterbox-inference anchors analyze`)
+- [x] Extract pitch, energy, temporal, and spectral features
+- [x] Add validation against expected emotional characteristics
+- [x] Store extracted features in database (`update_emotional_anchor_features` method)
 
 ### Phase 4: Coordinate Assignment
 - [ ] Create coordinate labeling interface/tool
@@ -689,14 +739,50 @@ We're essentially building a **practical implementation** of research concepts u
    - Documented prompt requirements and best practices
    - Established file organization: emotion map stored in `src/chatterbox_inference/emotion_map/`
 
+3. **Phase 1: Database Extensions** ✅ COMPLETE
+   - Created database migration system (`migrations.py`, `migrations_definition.py`)
+   - Defined `prompt_templates` and `emotional_anchors` table schemas
+   - Extended `VoiceDatabase` class with comprehensive methods for:
+     - Prompt template management
+     - Emotional anchor CRUD operations
+     - K-NN search in 4D emotional space (using SQLite)
+   - Created Pydantic schemas:
+     - `EmotionalCoordinates` with distance calculation
+     - `PromptTemplate`, `EmotionalAnchor` 
+     - `EmotionalTTSRequest` for API integration
+   - Built CLI commands:
+     - `chatterbox-inference db migrate` - Run migrations
+     - `chatterbox-inference db migration-status` - Show history
+     - `chatterbox-inference db seed-templates` - Load 100 templates
+   - Successfully tested: 3 migrations applied, 100 templates seeded
+
+4. **Architectural Clarifications**
+   - **Acoustic Analysis Purpose**: Clarified this is for OUTPUT validation, NOT user audio analysis
+   - **Modern Tool Stack**: Upgraded from librosa/parselmouth to torchaudio/PyWorld (2026 best practices)
+   - **LLM Integration**: Documented external orchestrator architecture - LLM lives OUTSIDE this app
+   - **Data Flow**: One neutral voice → 100 emotional variations → Runtime k-NN selection
+   - **Separation of Concerns**: TTS handles rendering, external LLM handles emotional reasoning
+
 **Next Steps:**
-- Phase 1: Implement database extensions and migration script
-- Phase 2: Build anchor generation CLI tool
+- Phase 2: Build anchor generation CLI tool (`generate-anchors` command)
+- Implement batch generation system with progress tracking
 - Generate actual voice anchors from neutral base voice using prompt templates
+- Add acoustic feature extraction (torchaudio + PyWorld)
 
 **Files Created:**
 - `emotions_to_convey.txt` - Emotion taxonomy reference
 - `src/chatterbox_inference/emotion_map/prompt_templates_seed.sql` - Database seed data (100 prompts)
+- `src/chatterbox_inference/models/migrations.py` - Migration framework
+- `src/chatterbox_inference/emotion_map/migrations_definition.py` - Migration definitions
+- `src/chatterbox_inference/emotion_map/__init__.py` - Module initialization
+- Updated: `src/chatterbox_inference/models/database.py` - Added emotional anchor methods
+- Updated: `src/chatterbox_inference/models/schemas.py` - Added emotional prosody schemas
+- Updated: `src/chatterbox_inference/cli.py` - Added database management commands
+
+**Database State:**
+- Version: 3 (all migrations applied)
+- Tables: `voices`, `prompt_templates`, `emotional_anchors`, `schema_migrations`
+- Data: 100 prompt templates seeded and ready for anchor generation
 
 ---
 

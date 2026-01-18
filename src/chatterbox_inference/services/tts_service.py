@@ -100,3 +100,67 @@ class TTSService:
             return "audio/ogg"
         else:
             return "application/octet-stream"
+    
+    @staticmethod
+    async def generate_test_samples(
+        text: str,
+        output_dir: str,
+        use_turbo: bool = False
+    ) -> dict:
+        """Generate test audio samples in all formats.
+        
+        Args:
+            text: Text to synthesize
+            output_dir: Directory to save files
+            use_turbo: Whether to use turbo model
+            
+        Returns:
+            Dictionary with results
+        """
+        from pathlib import Path
+        
+        output_path = Path(output_dir)
+        output_path.mkdir(parents=True, exist_ok=True)
+        
+        tts_engine = get_tts_engine()
+        await tts_engine.initialize()
+        
+        # Generate audio
+        chunks = []
+        async for chunk, sr in tts_engine.synthesize_streaming(text=text, use_turbo=use_turbo):
+            chunks.append(chunk)
+        
+        full_audio = np.concatenate(chunks)
+        sample_rate = tts_engine.sample_rate
+        
+        # Save in all formats
+        results = {
+            'sample_rate': sample_rate,
+            'duration':  len(full_audio) / sample_rate,
+            'samples': len(full_audio),
+            'files': {}
+        }
+        
+        formats = ["pcm", "wav", "vorbis"]
+        for fmt in formats:
+            encoder = AudioStreamEncoder(fmt, sample_rate)
+            
+            for chunk in chunks:
+                encoder.encode_chunk(chunk)
+            
+            encoded_data = encoder.finalize()
+            if fmt == "pcm":
+                encoded_data = encoder.encode_complete(full_audio)
+            
+            filename = f"test.{fmt if fmt != 'vorbis' else 'ogg'}"
+            filepath = output_path / filename
+            
+            with open(filepath, 'wb') as f:
+                f.write(encoded_data)
+            
+            results['files'][fmt] = {
+                'path': str(filepath),
+                'size': len(encoded_data)
+            }
+        
+        return results

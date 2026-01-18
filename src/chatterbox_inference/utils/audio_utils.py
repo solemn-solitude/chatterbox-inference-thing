@@ -6,7 +6,7 @@ import numpy as np
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Iterator, Tuple, List
+from typing import List
 import logging
 
 logger = logging.getLogger(__name__)
@@ -32,6 +32,63 @@ def encode_pcm_s16le(audio_array: np.ndarray, sample_rate: int) -> bytes:
     return audio_int16.tobytes()
 
 
+def _encode_riff_header(data_size: int) -> bytes:
+    """Create RIFF header chunk.
+    
+    Args:
+        data_size: Size of the audio data in bytes
+        
+    Returns:
+        RIFF header bytes
+    """
+    header = io.BytesIO()
+    header.write(b'RIFF')
+    header.write(struct.pack('<I', 36 + data_size))  # File size - 8
+    header.write(b'WAVE')
+    return header.getvalue()
+
+
+def _encode_fmt_chunk(sample_rate: int, num_channels: int, bits_per_sample: int) -> bytes:
+    """Create fmt chunk with audio format information.
+    
+    Args:
+        sample_rate: Sample rate
+        num_channels: Number of channels
+        bits_per_sample: Bits per sample (typically 16)
+        
+    Returns:
+        fmt chunk bytes
+    """
+    byte_rate = sample_rate * num_channels * bits_per_sample // 8
+    block_align = num_channels * bits_per_sample // 8
+    
+    chunk = io.BytesIO()
+    chunk.write(b'fmt ')
+    chunk.write(struct.pack('<I', 16))  # fmt chunk size
+    chunk.write(struct.pack('<H', 1))   # PCM format
+    chunk.write(struct.pack('<H', num_channels))
+    chunk.write(struct.pack('<I', sample_rate))
+    chunk.write(struct.pack('<I', byte_rate))
+    chunk.write(struct.pack('<H', block_align))
+    chunk.write(struct.pack('<H', bits_per_sample))
+    return chunk.getvalue()
+
+
+def _encode_data_chunk_header(data_size: int) -> bytes:
+    """Create data chunk header.
+    
+    Args:
+        data_size: Size of the audio data in bytes
+        
+    Returns:
+        data chunk header bytes
+    """
+    header = io.BytesIO()
+    header.write(b'data')
+    header.write(struct.pack('<I', data_size))
+    return header.getvalue()
+
+
 def encode_wav_header(sample_rate: int, num_channels: int, num_samples: int) -> bytes:
     """Create WAV file header.
     
@@ -44,32 +101,13 @@ def encode_wav_header(sample_rate: int, num_channels: int, num_samples: int) -> 
         WAV header bytes
     """
     bits_per_sample = 16
-    byte_rate = sample_rate * num_channels * bits_per_sample // 8
-    block_align = num_channels * bits_per_sample // 8
     data_size = num_samples * num_channels * bits_per_sample // 8
     
-    header = io.BytesIO()
+    riff_header = _encode_riff_header(data_size)
+    fmt_chunk = _encode_fmt_chunk(sample_rate, num_channels, bits_per_sample)
+    data_header = _encode_data_chunk_header(data_size)
     
-    # RIFF header
-    header.write(b'RIFF')
-    header.write(struct.pack('<I', 36 + data_size))  # File size - 8
-    header.write(b'WAVE')
-    
-    # fmt chunk
-    header.write(b'fmt ')
-    header.write(struct.pack('<I', 16))  # fmt chunk size
-    header.write(struct.pack('<H', 1))   # PCM format
-    header.write(struct.pack('<H', num_channels))
-    header.write(struct.pack('<I', sample_rate))
-    header.write(struct.pack('<I', byte_rate))
-    header.write(struct.pack('<H', block_align))
-    header.write(struct.pack('<H', bits_per_sample))
-    
-    # data chunk header
-    header.write(b'data')
-    header.write(struct.pack('<I', data_size))
-    
-    return header.getvalue()
+    return riff_header + fmt_chunk + data_header
 
 
 def encode_wav_complete(audio_array: np.ndarray, sample_rate: int) -> bytes:

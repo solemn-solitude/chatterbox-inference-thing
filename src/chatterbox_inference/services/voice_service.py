@@ -5,7 +5,7 @@ from typing import Optional, List, Dict, Any
 import numpy as np
 
 from ..tts import VoiceManager
-from ..models import VoiceDatabase, VoiceInfo
+from ..models import VoiceDatabase
 
 logger = logging.getLogger(__name__)
 
@@ -85,3 +85,15 @@ class VoiceService:
             True if deleted, False if not found
         """
         return await self.voice_manager.delete_voice(voice_id)
+    
+    async def rename_voice(self, old_voice_id: str, new_voice_id: str) -> bool:
+        """Rename a voice.
+        
+        Args:
+            old_voice_id: Current voice identifier
+            new_voice_id: New voice identifier
+            
+        Returns:
+            True if renamed successfully, False if failed
+        """
+        return await self.voice_manager.rename_voice(old_voice_id, new_voice_id)
