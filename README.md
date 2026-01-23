@@ -1,3 +1,10 @@
+
+# Actual dev notes
+
+This is severely work in progress, and there'll be breakign changes constantly. Don't use.
+
+
+
 # TTS Inference Server
 
 A production-ready TTS (Text-to-Speech) inference server with streaming support, supporting multiple TTS models including Chatterbox and Qwen3-TTS.
