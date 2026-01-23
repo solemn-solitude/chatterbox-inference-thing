@@ -12,7 +12,7 @@ import wave
 import numpy as np
 
 from ..models.database import VoiceDatabase
-from ..tts.engine import TTSEngine
+from ..tts.base_tts import BaseTTSEngine
 from ..tts.voice_manager import VoiceManager
 from ..utils.config import CONFIG
 
@@ -23,7 +23,7 @@ class AnchorGenerator:
     """Generates emotional voice anchors from prompt templates."""
 
     def __init__(
-        self, db: VoiceDatabase, tts_engine: TTSEngine, voice_manager: VoiceManager
+        self, db: VoiceDatabase, tts_engine: BaseTTSEngine, voice_manager: VoiceManager
     ):
         """Initialize anchor generator.
 

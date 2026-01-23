@@ -3,7 +3,7 @@
 import wave
 import numpy as np
 from pathlib import Path
-from typing import Optional, BinaryIO
+from typing import BinaryIO
 import logging
 
 from ..models.database import VoiceDatabase
@@ -29,6 +29,7 @@ class VoiceManager:
         voice_id: str,
         audio_file: BinaryIO,
         sample_rate: int,
+        voice_transcript: str,
     ) -> bool:
         """Upload and store a voice reference file.
         
@@ -36,6 +37,7 @@ class VoiceManager:
             voice_id: Unique identifier for the voice
             audio_file: Audio file content (WAV format)
             sample_rate: Sample rate of the audio
+            voice_transcript: Transcript of what is spoken in the audio file
             
         Returns:
             True if successful, False if voice_id already exists
@@ -65,6 +67,7 @@ class VoiceManager:
                 voice_id=voice_id,
                 filename=filename,
                 sample_rate=sample_rate,
+                voice_transcript=voice_transcript,
                 duration_seconds=duration
             )
             
@@ -161,7 +164,7 @@ class VoiceManager:
                 new_filepath.rename(old_filepath)
             return False
     
-    async def load_voice_reference(self, voice_id: str) -> Optional[np.ndarray]:
+    async def load_voice_reference(self, voice_id: str) -> np.ndarray | None:
         """Load voice reference audio for cloning.
         
         Args:

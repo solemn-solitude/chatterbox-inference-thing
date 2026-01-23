@@ -1,7 +1,9 @@
 """Data models for TTS Inference."""
 
 from .schemas import (
-    VoiceConfig,
+    BaseVoiceConfig,
+    ChatterboxVoiceConfig,
+    QwenVoiceConfig,
     TTSRequest,
     VoiceUploadRequest,
     VoiceInfo,
@@ -12,11 +14,14 @@ from .schemas import (
     HealthResponse,
     ReadyResponse,
     ErrorResponse,
+    ModelInfoResponse,
 )
 from .database import VoiceDatabase
 
 __all__ = [
-    "VoiceConfig",
+    "BaseVoiceConfig",
+    "ChatterboxVoiceConfig",
+    "QwenVoiceConfig",
     "TTSRequest",
     "VoiceUploadRequest",
     "VoiceInfo",
@@ -27,5 +32,6 @@ __all__ = [
     "HealthResponse",
     "ReadyResponse",
     "ErrorResponse",
+    "ModelInfoResponse",
     "VoiceDatabase",
 ]

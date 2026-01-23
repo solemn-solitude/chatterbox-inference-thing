@@ -28,6 +28,7 @@ class VoiceDatabase:
                     voice_id TEXT PRIMARY KEY,
                     filename TEXT NOT NULL,
                     sample_rate INTEGER NOT NULL,
+                    voice_transcript TEXT,
                     duration_seconds REAL,
                     uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
@@ -40,7 +41,8 @@ class VoiceDatabase:
         voice_id: str,
         filename: str,
         sample_rate: int,
-        duration_seconds: Optional[float] = None
+        voice_transcript: str | None = None,
+        duration_seconds: float | None = None
     ) -> bool:
         """Add a new voice to the database.
         
@@ -48,6 +50,7 @@ class VoiceDatabase:
             voice_id: Unique identifier for the voice
             filename: Name of the audio file
             sample_rate: Sample rate of the audio
+            voice_transcript: Transcript of what is spoken in the audio file
             duration_seconds: Duration of the audio in seconds
             
         Returns:
@@ -57,10 +60,10 @@ class VoiceDatabase:
             async with aiosqlite.connect(self.db_path) as db:
                 await db.execute(
                     """
-                    INSERT INTO voices (voice_id, filename, sample_rate, duration_seconds, uploaded_at)
-                    VALUES (?, ?, ?, ?, ?)
+                    INSERT INTO voices (voice_id, filename, sample_rate, voice_transcript, duration_seconds, uploaded_at)
+                    VALUES (?, ?, ?, ?, ?, ?)
                     """,
-                    (voice_id, filename, sample_rate, duration_seconds, datetime.utcnow().isoformat())
+                    (voice_id, filename, sample_rate, voice_transcript, duration_seconds, datetime.utcnow().isoformat())
                 )
                 await db.commit()
                 logger.info(f"Added voice: {voice_id}")
@@ -69,7 +72,7 @@ class VoiceDatabase:
             logger.warning(f"Voice ID already exists: {voice_id}")
             return False
     
-    async def get_voice(self, voice_id: str) -> Optional[Dict[str, Any]]:
+    async def get_voice(self, voice_id: str) -> dict[str, Any] | None:
         """Retrieve voice metadata by ID.
         
         Args:
@@ -89,7 +92,7 @@ class VoiceDatabase:
                     return dict(row)
                 return None
     
-    async def list_voices(self) -> List[Dict[str, Any]]:
+    async def list_voices(self) -> list[dict[str, Any]]:
         """List all voices in the database.
         
         Returns:

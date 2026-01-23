@@ -557,11 +557,45 @@ def config_info():
     help="Text to synthesize",
 )
 @click.option(
+    "--voice-id",
+    required=True,
+    help="Voice ID to use for synthesis (required)",
+)
+@click.option(
     "--output-dir", default="./test_samples", help="Directory to save test files"
 )
-@click.option("--turbo", is_flag=True, help="Use turbo model")
-def test_gen(text, output_dir, turbo):
-    """Generate test audio files in all formats for debugging."""
+@click.option("--turbo", is_flag=True, help="Use turbo model (Chatterbox only)")
+@click.option(
+    "--temperature",
+    default=None,
+    type=float,
+    help="Sampling temperature for variability (default: 0.9 for Qwen, 0.8 for Chatterbox)",
+)
+@click.option(
+    "--top-p",
+    default=None,
+    type=float,
+    help="Top-p sampling parameter (Qwen: default 1.0)",
+)
+@click.option(
+    "--top-k",
+    default=None,
+    type=int,
+    help="Top-k sampling parameter (Qwen: default 50)",
+)
+@click.option(
+   "--repetition-penalty",
+    default=None,
+    type=float,
+    help="Repetition penalty (default: 1.05 for Qwen, 1.2 for Chatterbox)",
+)
+def test_gen(text, voice_id, output_dir, turbo, temperature, top_p, top_k, repetition_penalty):
+    """Generate test audio files in all formats for debugging.
+    
+    Requires a voice ID from the database for voice cloning.
+    
+    For more expressive output, try higher temperature (e.g., 1.2-1.5).
+    """
     setup_logging("INFO")
     logger = logging.getLogger(__name__)
 
@@ -578,7 +612,14 @@ def test_gen(text, output_dir, turbo):
 
         try:
             results = await TTSService.generate_test_samples(
-                text=text, output_dir=output_dir, use_turbo=turbo
+                text=text,
+                voice_id=voice_id,
+                output_dir=output_dir,
+                use_turbo=turbo,
+                temperature=temperature,
+                top_p=top_p,
+                top_k=top_k,
+                repetition_penalty=repetition_penalty
             )
 
             click.echo(

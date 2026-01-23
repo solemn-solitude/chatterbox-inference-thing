@@ -2,7 +2,7 @@
 
 import torch
 import numpy as np
-from typing import Optional, AsyncIterator, Tuple, Dict
+from typing import AsyncIterator
 import logging
 from textwrap import dedent
 
@@ -10,14 +10,6 @@ from .base_tts import BaseTTSEngine
 from .qwen_voice_cache import QwenVoiceCache
 
 logger = logging.getLogger(__name__)
-
-
-# Predefined voice descriptions for common voices
-PREDEFINED_VOICES: Dict[str, str] = {
-    "solar": "Young male voice, energetic and enthusiastic with bright timbre, confident and engaging",
-    "default": "Natural speaking voice with clear pronunciation and moderate energy",
-    # Add more voices as needed
-}
 
 
 class QwenTTSEngine(BaseTTSEngine):
@@ -153,17 +145,15 @@ class QwenTTSEngine(BaseTTSEngine):
     async def _ensure_voice_prompt(
         self,
         voice_id: str,
-        voice_description: Optional[str] = None,
-        reference_audio: Optional[np.ndarray] = None,
-        ref_text: Optional[str] = None
+        reference_audio: np.ndarray,
+        ref_text: str | None = None
     ) -> any:
         """Get or create cached voice prompt.
         
         Args:
-            voice_id: Unique identifier for this voice
-            voice_description: Natural language description (for VoiceDesign)
-            reference_audio: Reference audio array (for direct cloning)
-            ref_text: Reference text for cloning
+            voice_id: Unique identifier for this voice (for caching)
+            reference_audio: Reference audio array from DB
+            ref_text: Transcript of reference audio (required for full prosodic cloning)
             
         Returns:
             Cached voice clone prompt
@@ -171,40 +161,21 @@ class QwenTTSEngine(BaseTTSEngine):
         # Check cache first
         cached_prompt = self.voice_cache.get(voice_id)
         if cached_prompt is not None:
+            logger.debug(f"Using cached voice prompt for: {voice_id}")
             return cached_prompt
         
         # Not cached - create new prompt
         logger.info(f"Creating voice prompt for: {voice_id}")
         
-        if reference_audio is not None:
-            # Direct cloning from reference audio (x-vector only mode)
-            voice_prompt = self.clone_model.create_voice_clone_prompt(
-                ref_audio=(reference_audio, self._default_sr),
-                ref_text=ref_text or "",
-                x_vector_only_mode=True
-            )
-            logger.info(f"Created prompt from reference audio for: {voice_id}")
-            
-        elif voice_description:
-            # Create reference using VoiceDesign, then clone
-            ref_text = ref_text or "This is a voice reference for cloning."
-            
-            logger.info(f"Designing voice for: {voice_id}")
-            ref_wavs, sr = self.design_model.generate_voice_design(
-                text=ref_text,
-                language="English",  # Reference text in English
-                instruct=voice_description
-            )
-            
-            # Build clone prompt from designed voice
-            voice_prompt = self.clone_model.create_voice_clone_prompt(
-                ref_audio=(ref_wavs[0], sr),
-                ref_text=ref_text,
-                x_vector_only_mode=False
-            )
-            logger.info(f"Created prompt from voice design for: {voice_id}")
-        else:
-            raise ValueError("Must provide voice_description or reference_audio")
+        # Direct cloning from reference audio with full prosody
+        # x_vector_only_mode=False preserves prosody and emotion but requires ref_text
+        ref_text = ref_text or "This is a sample of my voice for cloning purposes."
+        voice_prompt = self.clone_model.create_voice_clone_prompt(
+            ref_audio=(reference_audio, self._default_sr),
+            ref_text=ref_text,
+            x_vector_only_mode=False  # Full prosodic cloning for better quality
+        )
+        logger.info(f"Created prompt from reference audio for: {voice_id}")
         
         # Cache the prompt
         self.voice_cache.set(voice_id, voice_prompt)
@@ -215,37 +186,29 @@ class QwenTTSEngine(BaseTTSEngine):
     async def synthesize_streaming(
         self,
         text: str,
-        voice_mode: str,
-        voice_reference: Optional[np.ndarray] = None,
-        voice_name: Optional[str] = None,
+        voice_id: str,
+        voice_reference: np.ndarray,
         speed: float = 1.0,
-        sample_rate: Optional[int] = None,
-        voice_id: Optional[str] = None,
-        voice_description: Optional[str] = None,
+        sample_rate: int | None = None,
         language: str = "Auto",
-        instruct: Optional[str] = None,
-        ref_text: Optional[str] = None,
+        ref_text: str | None = None,
         max_new_tokens: int = 2048,
         top_p: float = 1.0,
         top_k: int = 50,
         temperature: float = 0.9,
         repetition_penalty: float = 1.05,
         **model_params
-    ) -> AsyncIterator[Tuple[np.ndarray, int]]:
+    ) -> AsyncIterator[tuple[np.ndarray, int]]:
         """Generate speech with streaming support.
         
         Args:
             text: Text to synthesize
-            voice_mode: "default" or "clone"
-            voice_reference: Reference audio for voice cloning (numpy array)
-            voice_name: Name of voice/speaker to use
+            voice_id: Voice ID from database (for caching)
+            voice_reference: Pre-loaded reference audio from DB
             speed: Speech speed multiplier (Qwen doesn't support this, will warn)
             sample_rate: Output sample rate
-            voice_id: Unique voice ID for caching
-            voice_description: Natural language voice description
             language: Language or "Auto"
-            instruct: Voice instruction override
-            ref_text: Reference text for cloning
+            ref_text: Transcript of reference audio (used for cloning)
             max_new_tokens: Maximum new tokens to generate
             top_p: Top-p sampling parameter
             top_k: Top-k sampling parameter
@@ -263,7 +226,6 @@ class QwenTTSEngine(BaseTTSEngine):
         if speed != 1.0:
             logger.warning("Qwen3-TTS does not support speed adjustment, ignoring speed parameter")
         
-        # Determine voice prompt strategy
         output_sr = sample_rate or self._default_sr
         
         try:
@@ -276,75 +238,20 @@ class QwenTTSEngine(BaseTTSEngine):
                 "repetition_penalty": repetition_penalty,
             }
             
-            # Voice selection logic
-            if voice_id and voice_description:
-                # Use cached VoiceDesign + Clone workflow
-                voice_prompt = await self._ensure_voice_prompt(
-                    voice_id=voice_id,
-                    voice_description=voice_description,
-                    ref_text=ref_text
-                )
-                
-                wavs, sr = self.clone_model.generate_voice_clone(
-                    text=text,
-                    language=language,
-                    voice_clone_prompt=voice_prompt,
-                    **gen_kwargs
-                )
-                
-            elif voice_id and voice_reference is not None:
-                # Direct cloning with caching
-                voice_prompt = await self._ensure_voice_prompt(
-                    voice_id=voice_id,
-                    reference_audio=voice_reference,
-                    ref_text=ref_text
-                )
-                
-                wavs, sr = self.clone_model.generate_voice_clone(
-                    text=text,
-                    language=language,
-                    voice_clone_prompt=voice_prompt,
-                    **gen_kwargs
-                )
-                
-            elif voice_name and voice_name.lower() in PREDEFINED_VOICES:
-                # Use predefined voice with VoiceDesign + Clone
-                voice_prompt = await self._ensure_voice_prompt(
-                    voice_id=voice_name,
-                    voice_description=PREDEFINED_VOICES[voice_name.lower()],
-                    ref_text=ref_text or f"This is {voice_name} speaking."
-                )
-                
-                wavs, sr = self.clone_model.generate_voice_clone(
-                    text=text,
-                    language=language,
-                    voice_clone_prompt=voice_prompt,
-                    **gen_kwargs
-                )
-                
-            elif voice_description:
-                # VoiceDesign without explicit voice_id (generate with voice_name as ID)
-                if not voice_id:
-                    voice_id = f"voice_design_{hash(voice_description) % 10000}"
-                
-                voice_prompt = await self._ensure_voice_prompt(
-                    voice_id=voice_id,
-                    voice_description=voice_description,
-                    ref_text=ref_text or "Voice reference."
-                )
-                
-                wavs, sr = self.clone_model.generate_voice_clone(
-                    text=text,
-                    language=language,
-                    voice_clone_prompt=voice_prompt,
-                    **gen_kwargs
-                )
-                
-            else:
-                raise ValueError(
-                    "Must provide one of: voice_id+description, voice_id+reference_audio, "
-                    "voice_name (predefined), or voice_description"
-                )
+            # Use Base model with voice cloning from reference audio
+            voice_prompt = await self._ensure_voice_prompt(
+                voice_id=voice_id,
+                reference_audio=voice_reference,
+                ref_text=ref_text
+            )
+            
+            logger.info(f"Generating with Base model voice cloning (voice_id: {voice_id})")
+            wavs, sr = self.clone_model.generate_voice_clone(
+                text=text,
+                language=language,
+                voice_clone_prompt=voice_prompt,
+                **gen_kwargs
+            )
             
             # Stream chunks
             chunk_size = output_sr  # 1 second chunks
@@ -366,7 +273,7 @@ class QwenTTSEngine(BaseTTSEngine):
             logger.error(f"Error during Qwen3-TTS synthesis: {e}")
             raise
     
-    def get_cache_stats(self) -> Dict[str, any]:
+    def get_cache_stats(self) -> dict[str, any]:
         """Get voice cache statistics.
         
         Returns:

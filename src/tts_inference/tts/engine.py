@@ -4,15 +4,28 @@ import logging
 from typing import Optional
 
 from .base_tts import BaseTTSEngine
-from .chatterbox_tts import ChatterboxTTSEngine
-from .qwen_tts import QwenTTSEngine
 from ..utils.config import CONFIG
+
+# Conditional imports based on what's installed
+try:
+    from .chatterbox_tts import ChatterboxTTSEngine
+    CHATTERBOX_AVAILABLE = True
+except ImportError:
+    CHATTERBOX_AVAILABLE = False
+    ChatterboxTTSEngine = None
+
+try:
+    from .qwen_tts import QwenTTSEngine
+    QWEN_AVAILABLE = True
+except ImportError:
+    QWEN_AVAILABLE = False
+    QwenTTSEngine = None
 
 logger = logging.getLogger(__name__)
 
 
 def create_tts_engine(
-    model_type: Optional[str] = None,
+    model_type: str | None = None,
     **config
 ) -> BaseTTSEngine:
     """Factory function to create TTS engine based on model type.
@@ -27,17 +40,28 @@ def create_tts_engine(
         
     Raises:
         ValueError: If model_type is unknown
+        ImportError: If required model dependencies are not installed
     """
     model_type = model_type or CONFIG.tts_model
     
     logger.info(f"Creating TTS engine: {model_type}")
     
     if model_type == "chatterbox":
+        if not CHATTERBOX_AVAILABLE:
+            raise ImportError(
+                "chatterbox-tts is not installed. "
+                "Install with: uv sync --extra chatterbox"
+            )
         return ChatterboxTTSEngine(
             inactivity_timeout=config.get("inactivity_timeout", CONFIG.offload_timeout),
             keep_warm=config.get("keep_warm", CONFIG.keep_warm)
         )
     elif model_type == "qwen":
+        if not QWEN_AVAILABLE:
+            raise ImportError(
+                "qwen-tts is not installed. "
+                "Install with: uv sync --extra qwen"
+            )
         return QwenTTSEngine(
             inactivity_timeout=config.get("inactivity_timeout", CONFIG.offload_timeout),
             keep_warm=config.get("keep_warm", CONFIG.keep_warm),

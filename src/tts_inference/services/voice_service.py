@@ -49,7 +49,8 @@ class VoiceService:
         self,
         voice_id: str,
         audio_file,
-        sample_rate: int
+        sample_rate: int,
+        voice_transcript: str
     ) -> bool:
         """Upload a new voice.
         
@@ -57,6 +58,7 @@ class VoiceService:
             voice_id: Unique voice identifier
             audio_file: Audio file object
             sample_rate: Sample rate of audio
+            voice_transcript: Transcript of what is spoken in the audio file
             
         Returns:
             True if successful
@@ -64,7 +66,8 @@ class VoiceService:
         return await self.voice_manager.upload_voice(
             voice_id=voice_id,
             audio_file=audio_file,
-            sample_rate=sample_rate
+            sample_rate=sample_rate,
+            voice_transcript=voice_transcript
         )
     
     async def list_voices(self) -> List[Dict[str, Any]]:

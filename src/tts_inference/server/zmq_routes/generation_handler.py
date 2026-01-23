@@ -2,6 +2,7 @@
 
 import json
 import logging
+import msgpack
 
 from ...models import TTSRequest
 from ...services import TTSService, VoiceService
@@ -25,15 +26,18 @@ async def handle_synthesize(identity_frames: list, request_dict: dict, voice_ser
         
         # Get client ID for logging (first identity frame)
         client_id_hex = identity_frames[0].hex()[:8] if identity_frames else "unknown"
-        logger.info(f"TTS synthesis request from client {client_id_hex}: mode={request.voice_mode}")
+        logger.info(f"TTS synthesis request from client {client_id_hex}: voice_id={request.voice_config.voice_id}")
         
-        # Load voice reference if needed
-        voice_reference = None
-        if request.voice_mode == "clone":
-            voice_reference = await voice_service.load_voice_reference(request.voice_config.voice_id)
-            if voice_reference is None:
-                await send_message(identity_frames, b"error", json.dumps({"error": f"Voice not found: {request.voice_config.voice_id}"}).encode())
-                return
+        # Load voice reference from DB (required)
+        voice_reference = await voice_service.load_voice_reference(request.voice_config.voice_id)
+        if voice_reference is None:
+            error_msg = f"Voice not found in database: {request.voice_config.voice_id}"
+            await send_message(identity_frames, b"error", msgpack.packb({"error": error_msg}))
+            return
+        
+        # Load voice transcript from DB (used as ref_text for Qwen)
+        voice_info = await voice_service.voice_manager.db.get_voice(request.voice_config.voice_id)
+        voice_transcript = voice_info.get("voice_transcript") if voice_info else None
         
         # Get output sample rate
         from ...tts import get_tts_engine
@@ -46,14 +50,16 @@ async def handle_synthesize(identity_frames: list, request_dict: dict, voice_ser
             "sample_rate": output_sr,
             "audio_format": request.audio_format
         }
-        await send_message(identity_frames, b"metadata", json.dumps(metadata).encode('utf-8'))
+        await send_message(identity_frames, b"metadata", msgpack.packb(metadata))
         
         # Create encoder
         encoder = AudioStreamEncoder(request.audio_format, output_sr)
         
         # Stream audio chunks
         chunk_count = 0
-        async for audio_chunk, sample_rate in TTSService.synthesize_streaming(request, voice_reference):
+        async for audio_chunk, sample_rate in TTSService.synthesize_streaming(
+            request, voice_reference, voice_transcript
+        ):
             encoded_chunk = encoder.encode_chunk(audio_chunk)
             if encoded_chunk:  # Only send non-empty chunks (PCM returns data, WAV/Vorbis return empty)
                 await send_message(identity_frames, b"audio", encoded_chunk)
@@ -68,10 +74,10 @@ async def handle_synthesize(identity_frames: list, request_dict: dict, voice_ser
         
         # Send completion message
         completion = {"status": "complete", "chunks": chunk_count}
-        await send_message(identity_frames, b"complete", json.dumps(completion).encode('utf-8'))
+        await send_message(identity_frames, b"complete", msgpack.packb(completion))
         
         logger.info(f"TTS synthesis complete for client {client_id_hex}: {chunk_count} chunks sent")
         
     except Exception as e:
         logger.error(f"Error in synthesize handler: {e}", exc_info=True)
-        await send_message(identity_frames, b"error", json.dumps({"error": str(e)}).encode())
+        await send_message(identity_frames, b"error", msgpack.packb({"error": str(e)}))

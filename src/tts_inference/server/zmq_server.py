@@ -3,7 +3,7 @@
 import asyncio
 import json
 import logging
-from typing import Optional
+import msgpack
 import zmq
 import zmq.asyncio
 
@@ -141,7 +141,7 @@ class ZMQServer:
         
         Args:
             identity_frames: List of identity frames from ROUTER
-            request_data: The actual request data (JSON or plain text)
+            request_data: The actual request data (msgpack or JSON)
         """
         try:
             # Check if request_data is empty or just whitespace
@@ -150,33 +150,20 @@ class ZMQServer:
                 await self._send_error(identity_frames, "Empty request data")
                 return
             
-            # Try to parse as JSON first
+            # Try msgpack first (preferred), then fall back to JSON
             try:
-                request_dict = json.loads(request_data.decode('utf-8'))
-            except json.JSONDecodeError:
-                # Not JSON - treat as plain text to synthesize
-                logger.info(f"Received plain text message ({len(request_data)} bytes)")
-                text = request_data.decode('utf-8')
-                
-                # Create a synthesize request from the plain text
-                # TODO: Make voice settings configurable via environment variables
-                # Currently using hardcoded "peaches4" voice as placeholder
-                request_dict = {
-                    "text": text,
-                    "voice_mode": "clone",
-                    "audio_format": "pcm",  # Changed from "vorbis" to "pcm" for raw audio streaming
-                    "voice_config": {
-                        "voice_id": "solar",  # TODO: Make this configurable
-                        "speed": 1.0,
-                        "exaggeration": 0.15,
-                        "cfg_weight": 1
-                    },
-                    "use_turbo": False
-                }
-                
-                # Handle synthesis without API key check for plain text (internal messages)
-                await handle_synthesize(identity_frames, request_dict, self.voice_service, self._send_message)
-                return
+                request_dict = msgpack.unpackb(request_data, raw=False)
+                logger.debug("Parsed msgpack request")
+            except Exception:
+                # Try JSON
+                try:
+                    request_dict = json.loads(request_data.decode('utf-8'))
+                    logger.debug("Parsed JSON request")
+                except json.JSONDecodeError as e:
+                    logger.error(f"Failed to parse request as msgpack or JSON: {e}")
+                    logger.error(f"Request data (first 200 bytes): {request_data[:200]}")
+                    await self._send_error(identity_frames, "Invalid request format (expected msgpack or JSON)")
+                    return
             
             # Verify API key
             api_key = request_dict.get("api_key")
@@ -205,6 +192,8 @@ class ZMQServer:
                 await handle_ready(identity_frames, self._send_message)
             elif request_type == "model_unload":
                 await handle_model_unload(identity_frames, self._send_message)
+            elif request_type == "model_info":
+                await self._handle_model_info(identity_frames)
             else:
                 await self._send_error(identity_frames, f"Unknown request type: {request_type}")
                 
@@ -240,7 +229,25 @@ class ZMQServer:
             error_msg: Error message to send
         """
         error_data = {"error": error_msg}
-        await self._send_message(identity_frames, b"error", json.dumps(error_data).encode('utf-8'))
+        await self._send_message(identity_frames, b"error", msgpack.packb(error_data))
+    
+    async def _handle_model_info(self, identity_frames: list):
+        """Handle model info request.
+        
+        Args:
+            identity_frames: List of identity frames from ROUTER
+        """
+        try:
+            tts_engine = get_tts_engine()
+            info = {
+                "model": CONFIG.tts_model,
+                "sample_rate": tts_engine.sample_rate if tts_engine.is_loaded() else None
+            }
+            await self._send_message(identity_frames, b"response", msgpack.packb(info))
+            logger.info(f"Sent model info: {info}")
+        except Exception as e:
+            logger.error(f"Error getting model info: {e}", exc_info=True)
+            await self._send_error(identity_frames, str(e))
     
     async def stop(self):
         """Stop the ZMQ server."""

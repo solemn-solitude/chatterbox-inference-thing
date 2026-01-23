@@ -94,6 +94,39 @@ async def create_indexes(db: aiosqlite.Connection):
     """)
 
 
+@migrator.register(4, "replace_voice_description_with_transcript")
+async def replace_voice_description_with_transcript(db: aiosqlite.Connection):
+    """Replace voice_description column with voice_transcript in voices table.
+    
+    SQLite doesn't support DROP COLUMN directly, so we need to recreate the table.
+    The transcript should contain the actual words spoken in the reference audio.
+    """
+    # Create new table with voice_transcript instead of voice_description
+    await db.execute("""
+        CREATE TABLE voices_new (
+            voice_id TEXT PRIMARY KEY,
+            filename TEXT NOT NULL,
+            sample_rate INTEGER NOT NULL,
+            voice_transcript TEXT,
+            duration_seconds REAL,
+            uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    
+    # Copy data from old table (voice_description -> voice_transcript)
+    await db.execute("""
+        INSERT INTO voices_new (voice_id, filename, sample_rate, voice_transcript, duration_seconds, uploaded_at)
+        SELECT voice_id, filename, sample_rate, voice_description, duration_seconds, uploaded_at
+        FROM voices
+    """)
+    
+    # Drop old table
+    await db.execute("DROP TABLE voices")
+    
+    # Rename new table to voices
+    await db.execute("ALTER TABLE voices_new RENAME TO voices")
+
+
 def get_migrator(db_path: Path) -> MigrationManager:
     """Get a migration manager configured for the given database path.
     

@@ -1,29 +1,34 @@
 """Pydantic models for request and response schemas."""
 
 from pydantic import BaseModel, Field, field_validator
-from typing import Optional, Literal
+from typing import Literal
 from datetime import datetime
+import msgpack
 
 
 class BaseVoiceConfig(BaseModel):
     """Base voice configuration for TTS synthesis."""
     
-    # Common settings
-    speed: float = Field(1.0, ge=0.1, le=3.0, description="Speech speed multiplier")
+    # Common settings - voice cloning only
+    voice_id: str = Field(..., description="ID of uploaded voice for cloning")
+    speed: float = Field(1.0, ge=0.1, le=3.0, description="Speech speed multiplier (Chatterbox only)")
     
-    # For default mode
-    voice_name: Optional[str] = Field(None, description="Name of default voice to use")
-    
-    # For clone mode
-    voice_id: Optional[str] = Field(None, description="ID of uploaded voice for cloning")
-    
-    @field_validator('voice_name', 'voice_id')
+    @field_validator('voice_id')
     @classmethod
-    def validate_voice(cls, v):
-        """Ensure voice identifiers are valid."""
-        if v is not None and not v.strip():
-            raise ValueError("Voice name/ID cannot be empty")
+    def validate_voice_id(cls, v):
+        """Ensure voice_id is valid."""
+        if not v.strip():
+            raise ValueError("voice_id cannot be empty")
         return v
+    
+    def to_msgpack(self) -> bytes:
+        """Serialize to msgpack."""
+        return msgpack.packb(self.model_dump(), use_bin_type=True)
+    
+    @classmethod
+    def from_msgpack(cls, data: bytes):
+        """Deserialize from msgpack."""
+        return cls(**msgpack.unpackb(data, raw=False))
 
 
 class ChatterboxVoiceConfig(BaseVoiceConfig):
@@ -39,16 +44,9 @@ class ChatterboxVoiceConfig(BaseVoiceConfig):
 class QwenVoiceConfig(BaseVoiceConfig):
     """Qwen3-TTS-specific voice configuration."""
     
-    # Voice selection
-    voice_description: Optional[str] = Field(
-        None,
-        description="Natural language voice description (for VoiceDesign)"
-    )
-    
     # Generation parameters
     language: str = Field("Auto", description="Language or 'Auto'")
-    instruct: Optional[str] = Field(None, description="Voice instruction override")
-    ref_text: Optional[str] = Field(None, description="Reference text for cloning")
+    ref_text: str | None = Field(None, description="Reference text for cloning")
     
     # Model parameters
     max_new_tokens: int = Field(2048, ge=1, le=8192, description="Maximum new tokens to generate")
@@ -62,11 +60,10 @@ class TTSRequest(BaseModel):
     """Request model for TTS synthesis."""
     
     text: str = Field(..., min_length=1, max_length=10000, description="Text to synthesize")
-    voice_mode: Literal["default", "clone"] = Field("default", description="Voice mode to use")
-    voice_config: Union[ChatterboxVoiceConfig, QwenVoiceConfig] = Field(default_factory=ChatterboxVoiceConfig, description="Voice configuration")  # type: ignore[call-arg]
+    voice_config: ChatterboxVoiceConfig | QwenVoiceConfig = Field(default_factory=ChatterboxVoiceConfig, description="Voice configuration")  # type: ignore[call-arg]
     audio_format: Literal["pcm", "wav", "vorbis"] = Field("pcm", description="Output audio format")
-    sample_rate: Optional[int] = Field(None, ge=20480, le=420480, description="Output sample rate (defaults to model.sr)")
-    model_type: Optional[Literal["chatterbox", "qwen"]] = Field(None, description="Override default TTS model")
+    sample_rate: int | None = Field(None, ge=20480, le=420480, description="Output sample rate (defaults to model.sr)")
+    model_type: Literal["chatterbox", "qwen"] | None = Field(None, description="Override default TTS model")
     use_turbo: bool = Field(False, description="Use ChatterboxTurboTTS (Chatterbox only)")
     
     @field_validator('text')
@@ -77,12 +74,14 @@ class TTSRequest(BaseModel):
             raise ValueError("Text cannot be empty")
         return v
     
-    def model_post_init(self, __context):
-        """Validate mode-specific requirements."""
-        if self.voice_mode == "default" and not self.voice_config.voice_name:
-            self.voice_config.voice_name = "default"  # Set default voice
-        elif self.voice_mode == "clone" and not self.voice_config.voice_id:
-            raise ValueError("voice_id is required when voice_mode is 'clone'")
+    def to_msgpack(self) -> bytes:
+        """Serialize to msgpack."""
+        return msgpack.packb(self.model_dump(), use_bin_type=True)
+    
+    @classmethod
+    def from_msgpack(cls, data: bytes):
+        """Deserialize from msgpack."""
+        return cls(**msgpack.unpackb(data, raw=False))
 
 
 class VoiceUploadRequest(BaseModel):
@@ -90,6 +89,7 @@ class VoiceUploadRequest(BaseModel):
     
     voice_id: str = Field(..., min_length=1, max_length=100, description="Unique identifier for the voice")
     sample_rate: int = Field(..., ge=20480, le=420480, description="Sample rate of the audio file")
+    voice_transcript: str = Field(..., min_length=1, max_length=1000, description="Transcript of what is spoken in the audio file")
     
     @field_validator('voice_id')
     @classmethod
@@ -102,6 +102,14 @@ class VoiceUploadRequest(BaseModel):
         if any(char in v for char in invalid_chars):
             raise ValueError(f"voice_id cannot contain: {' '.join(invalid_chars)}")
         return v.strip()
+    
+    @field_validator('voice_transcript')
+    @classmethod
+    def validate_transcript(cls, v):
+        """Ensure voice_transcript is not empty."""
+        if not v.strip():
+            raise ValueError("voice_transcript cannot be empty")
+        return v.strip()
 
 
 class VoiceInfo(BaseModel):
@@ -110,7 +118,8 @@ class VoiceInfo(BaseModel):
     voice_id: str
     filename: str
     sample_rate: int
-    duration_seconds: Optional[float] = None
+    voice_transcript: str | None = None
+    duration_seconds: float | None = None
     uploaded_at: str
 
 
@@ -167,8 +176,15 @@ class ErrorResponse(BaseModel):
     """Response model for errors."""
     
     error: str
-    detail: Optional[str] = None
-    code: Optional[str] = None
+    detail: str | None = None
+    code: str | None = None
+
+
+class ModelInfoResponse(BaseModel):
+    """Response model for model information."""
+    
+    model: str
+    sample_rate: int | None = None
 
 
 # ============================================================================
@@ -185,11 +201,11 @@ class EmotionalCoordinates(BaseModel):
     stability: float = Field(..., ge=0.0, le=1.0, description="Irregular (0.0) to Stable (1.0)")
     
     @classmethod
-    def neutral(cls) -> 'EmotionalCoordinates':
+    def neutral(cls) -> "EmotionalCoordinates":
         """Return neutral emotional coordinates."""
         return cls(valence=0.0, arousal=0.5, tension=0.3, stability=0.8)
     
-    def distance_to(self, other: 'EmotionalCoordinates') -> float:
+    def distance_to(self, other: "EmotionalCoordinates") -> float:
         """Calculate Euclidean distance to another coordinate.
         
         Args:
@@ -211,8 +227,8 @@ class PromptTemplate(BaseModel):
     
     template_id: str
     prompt_text: str
-    emotion_label: Optional[str] = None
-    description: Optional[str] = None
+    emotion_label: str | None = None
+    description: str | None = None
     
     # Generation parameters
     exaggeration: float = Field(0.15, ge=0.0, le=1.0)
@@ -221,15 +237,15 @@ class PromptTemplate(BaseModel):
     repetition_penalty: float = Field(1.2, ge=1.0, le=2.0)
     
     # Target coordinates
-    target_valence: Optional[float] = Field(None, ge=-1.0, le=1.0)
-    target_arousal: Optional[float] = Field(None, ge=0.0, le=1.0)
-    target_tension: Optional[float] = Field(None, ge=0.0, le=1.0)
-    target_stability: Optional[float] = Field(None, ge=0.0, le=1.0)
+    target_valence: float | None = Field(None, ge=-1.0, le=1.0)
+    target_arousal: float | None = Field(None, ge=0.0, le=1.0)
+    target_tension: float | None = Field(None, ge=0.0, le=1.0)
+    target_stability: float | None = Field(None, ge=0.0, le=1.0)
     
-    created_at: Optional[str] = None
+    created_at: str | None = None
     
     @property
-    def target_coords(self) -> Optional[EmotionalCoordinates]:
+    def target_coords(self) -> EmotionalCoordinates | None:
         """Get target coordinates as EmotionalCoordinates object."""
         if all(x is not None for x in [
             self.target_valence, self.target_arousal, 
@@ -247,13 +263,13 @@ class PromptTemplate(BaseModel):
 class AcousticFeatures(BaseModel):
     """Extracted acoustic features from voice samples."""
     
-    mean_pitch: Optional[float] = None
-    pitch_variance: Optional[float] = None
-    pitch_range: Optional[float] = None
-    mean_energy: Optional[float] = None
-    energy_variance: Optional[float] = None
-    speaking_rate: Optional[float] = None
-    spectral_centroid: Optional[float] = None
+    mean_pitch: float | None = None
+    pitch_variance: float | None = None
+    pitch_range: float | None = None
+    mean_energy: float | None = None
+    energy_variance: float | None = None
+    speaking_rate: float | None = None
+    spectral_centroid: float | None = None
 
 
 class EmotionalAnchor(BaseModel):
@@ -266,7 +282,7 @@ class EmotionalAnchor(BaseModel):
     # File storage
     audio_file_path: str
     sample_rate: int
-    duration_seconds: Optional[float] = None
+    duration_seconds: float | None = None
     
     # Emotional coordinates
     valence: float = Field(..., ge=-1.0, le=1.0)
@@ -275,15 +291,15 @@ class EmotionalAnchor(BaseModel):
     stability: float = Field(..., ge=0.0, le=1.0)
     
     # Acoustic features
-    mean_pitch: Optional[float] = None
-    pitch_variance: Optional[float] = None
-    pitch_range: Optional[float] = None
-    mean_energy: Optional[float] = None
-    energy_variance: Optional[float] = None
-    speaking_rate: Optional[float] = None
-    spectral_centroid: Optional[float] = None
+    mean_pitch: float | None = None
+    pitch_variance: float | None = None
+    pitch_range: float | None = None
+    mean_energy: float | None = None
+    energy_variance: float | None = None
+    speaking_rate: float | None = None
+    spectral_centroid: float | None = None
     
-    generated_at: Optional[str] = None
+    generated_at: str | None = None
     
     @property
     def coords(self) -> EmotionalCoordinates:
@@ -316,7 +332,7 @@ class EmotionalTTSRequest(BaseModel):
     emotional_coords: EmotionalCoordinates = Field(..., description="Target emotional coordinates")
     base_voice_id: str = Field(..., description="Base voice ID to use for anchor selection")
     audio_format: Literal["pcm", "wav", "vorbis"] = Field("pcm", description="Output audio format")
-    sample_rate: Optional[int] = Field(None, ge=20480, le=420480, description="Output sample rate")
+    sample_rate: int | None = Field(None, ge=20480, le=420480, description="Output sample rate")
     use_turbo: bool = Field(False, description="Use ChatterboxTurboTTS")
     
     # Optional smoothing parameters

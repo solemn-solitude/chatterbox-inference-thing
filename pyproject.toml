@@ -5,8 +5,6 @@ description = "TTS inference server with FastAPI and ZMQ streaming support"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "chatterbox-tts>=0.1.6",
-    "qwen-tts>=0.1.0",
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.32.0",
     "websockets>=13.0",
@@ -26,10 +24,23 @@ dependencies = [
     "pyworld>=0.3.4",
     "crepe>=0.0.13",
     "scipy>=1.11.0",
+    "msgpack>=1.0.0",
+]
+
+[project.optional-dependencies]
+chatterbox = [
+    "chatterbox-tts>=0.1.6",
+]
+qwen = [
+    "qwen-tts>=0.0.5",
+    "flash-attn>=2.0.0",
 ]
 
 [project.scripts]
 tts-inference = "tts_inference.cli:main"
+
+[tool.uv.extra-build-dependencies]
+flash-attn = ["torch"]
 
 [build-system]
 requires = ["hatchling"]

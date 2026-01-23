@@ -5,7 +5,7 @@ import numpy as np
 import tempfile
 import asyncio
 from pathlib import Path
-from typing import Optional, AsyncIterator, Tuple
+from typing import AsyncIterator
 from datetime import datetime
 from textwrap import dedent
 import logging
@@ -68,16 +68,16 @@ class ChatterboxTTSEngine(BaseTTSEngine):
             inactivity_timeout: Seconds of inactivity before offloading model (default: 600 = 10 minutes)
             keep_warm: If True, keep model loaded in memory (disable auto-offloading)
         """
-        self.model_regular: Optional[ChatterboxTTS] = None
-        self.model_turbo: Optional[ChatterboxTurboTTS] = None
+        self.model_regular: ChatterboxTTS | None = None
+        self.model_turbo: ChatterboxTurboTTS | None = None
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self._default_sr: int = 24000  # ChatterboxTTS default sample rate
         
         # Inactivity tracking
         self.inactivity_timeout = inactivity_timeout
         self.keep_warm = keep_warm
-        self.last_activity_time: Optional[datetime] = None
-        self._monitor_task: Optional[asyncio.Task] = None
+        self.last_activity_time: datetime | None = None
+        self._monitor_task: asyncio.Task | None = None
         self._is_offloaded = False
         
     async def initialize(self):
@@ -236,25 +236,23 @@ class ChatterboxTTSEngine(BaseTTSEngine):
     async def synthesize_streaming(
         self,
         text: str,
-        voice_mode: str = "default",
-        voice_reference: Optional[np.ndarray] = None,
-        voice_name: Optional[str] = None,
+        voice_id: str,
+        voice_reference: np.ndarray,
         speed: float = 1.0,
-        sample_rate: Optional[int] = None,
+        sample_rate: int | None = None,
         use_turbo: bool = False,
         exaggeration: float = 0.5,
         cfg_weight: float = 0.5,
         temperature: float = 0.8,
         repetition_penalty: float = 1.2,
         **model_params
-    ) -> AsyncIterator[Tuple[np.ndarray, int]]:
+    ) -> AsyncIterator[tuple[np.ndarray, int]]:
         """Generate speech audio with streaming support.
         
         Args:
             text: Text to synthesize
-            voice_mode: "default" or "clone"
+            voice_id: Voice ID (for compatibility, not used by Chatterbox)
             voice_reference: Reference audio for voice cloning (numpy array)
-            voice_name: Name of default voice to use
             speed: Speech speed multiplier
             sample_rate: Output sample rate (defaults to model.sr)
             use_turbo: Use ChatterboxTurboTTS instead of ChatterboxTTS
@@ -283,35 +281,34 @@ class ChatterboxTTSEngine(BaseTTSEngine):
             model_sr = self.get_model_sample_rate(use_turbo)
             output_sr = sample_rate or model_sr
             
-            # Prepare audio prompt path if voice cloning is requested
+            # Prepare audio prompt path for voice cloning (always done now)
             audio_prompt_path = None
             temp_file = None
             
-            if voice_mode == "clone" and voice_reference is not None:
-                try:
-                    # Create temporary WAV file from voice reference
-                    logger.info("Voice cloning mode: creating temporary reference audio file")
-                    
-                    # Encode the numpy array as WAV using the model's sample rate
-                    wav_data = encode_wav_complete(voice_reference, model_sr)
-                    
-                    # Save to temporary file
-                    temp_file = tempfile.NamedTemporaryFile(
-                        mode='wb',
-                        suffix='.wav',
-                        delete=False
-                    )
-                    temp_file.write(wav_data)
-                    temp_file.close()
-                    
-                    audio_prompt_path = temp_file.name
-                    logger.info(f"Voice cloning: saved reference audio to {audio_prompt_path}")
-                    
-                except Exception as e:
-                    logger.error(f"Error preparing voice reference for cloning: {e}")
-                    if temp_file and hasattr(temp_file, 'name'):
-                        Path(temp_file.name).unlink(missing_ok=True)
-                    raise
+            try:
+                # Create temporary WAV file from voice reference
+                logger.info("Voice cloning: creating temporary reference audio file")
+                
+                # Encode the numpy array as WAV using the model's sample rate
+                wav_data = encode_wav_complete(voice_reference, model_sr)
+                
+                # Save to temporary file
+                temp_file = tempfile.NamedTemporaryFile(
+                    mode='wb',
+                    suffix='.wav',
+                    delete=False
+                )
+                temp_file.write(wav_data)
+                temp_file.close()
+                
+                audio_prompt_path = temp_file.name
+                logger.info(f"Voice cloning: saved reference audio to {audio_prompt_path}")
+                
+            except Exception as e:
+                logger.error(f"Error preparing voice reference for cloning: {e}")
+                if temp_file and hasattr(temp_file, 'name'):
+                    Path(temp_file.name).unlink(missing_ok=True)
+                raise
             
             logger.info("Generating speech with {} for text: {}...".format(model_name, text[:50]))
             
