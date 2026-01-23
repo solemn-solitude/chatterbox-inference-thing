@@ -358,7 +358,7 @@ CREATE INDEX idx_template ON emotional_anchors(template_id);
       {anchor_id}.wav
       
 Example:
-  ~/.local/share/chatterbox-inference/
+  ~/.local/share/tts-inference/
     anchors/
       neutral_companion_v1/
         comfort_quiet_01.wav
@@ -521,17 +521,17 @@ class EmotionalStateMachine:
 - [x] Create prompt_templates database table
 - [x] Import emotional prompts from external LLM
 - [x] Validate prompt templates (length, clarity, parameter ranges)
-- [x] Create CLI command: `chatterbox-inference anchors generate`
+- [x] Create CLI command: `tts-inference anchors generate`
 - [x] Implement batch generation system with optimal parameters
 - [x] Add progress tracking and logging
 - [x] Organize generated files in directory structure
-- [x] Create anchor listing tool: `chatterbox-inference anchors list`
+- [x] Create anchor listing tool: `tts-inference anchors list`
 - [x] Documentation for generation workflow
 
 ### Phase 3: Acoustic Feature Extraction ✅ COMPLETE
 - [x] Add acoustic analysis dependencies (torchaudio, librosa, pyworld, crepe, scipy)
 - [x] Implement feature extraction module (`acoustic_features.py`)
-- [x] Create analysis CLI command (`chatterbox-inference anchors analyze`)
+- [x] Create analysis CLI command (`tts-inference anchors analyze`)
 - [x] Extract pitch, energy, temporal, and spectral features
 - [x] Add validation against expected emotional characteristics
 - [x] Store extracted features in database (`update_emotional_anchor_features` method)
@@ -731,13 +731,13 @@ We're essentially building a **practical implementation** of research concepts u
      - Temperature: 0.5-1.2 (tuned for stability vs. expression)
      - Repetition penalty: 1.2-1.3 (consistent)
    - Mapped each prompt to target 4D emotional coordinates (valence, arousal, tension, stability)
-   - Generated SQL seed data: `src/chatterbox_inference/emotion_map/prompt_templates_seed.sql`
+   - Generated SQL seed data: `src/tts_inference/emotion_map/prompt_templates_seed.sql`
    - Verified SQLite compatibility (100 rows successfully inserted and queried)
 
 3. **Design Refinements**
    - Confirmed emotion-to-coordinate mapping strategy
    - Documented prompt requirements and best practices
-   - Established file organization: emotion map stored in `src/chatterbox_inference/emotion_map/`
+   - Established file organization: emotion map stored in `src/tts_inference/emotion_map/`
 
 3. **Phase 1: Database Extensions** ✅ COMPLETE
    - Created database migration system (`migrations.py`, `migrations_definition.py`)
@@ -751,9 +751,9 @@ We're essentially building a **practical implementation** of research concepts u
      - `PromptTemplate`, `EmotionalAnchor` 
      - `EmotionalTTSRequest` for API integration
    - Built CLI commands:
-     - `chatterbox-inference db migrate` - Run migrations
-     - `chatterbox-inference db migration-status` - Show history
-     - `chatterbox-inference db seed-templates` - Load 100 templates
+     - `tts-inference db migrate` - Run migrations
+     - `tts-inference db migration-status` - Show history
+     - `tts-inference db seed-templates` - Load 100 templates
    - Successfully tested: 3 migrations applied, 100 templates seeded
 
 4. **Architectural Clarifications**
@@ -771,13 +771,13 @@ We're essentially building a **practical implementation** of research concepts u
 
 **Files Created:**
 - `emotions_to_convey.txt` - Emotion taxonomy reference
-- `src/chatterbox_inference/emotion_map/prompt_templates_seed.sql` - Database seed data (100 prompts)
-- `src/chatterbox_inference/models/migrations.py` - Migration framework
-- `src/chatterbox_inference/emotion_map/migrations_definition.py` - Migration definitions
-- `src/chatterbox_inference/emotion_map/__init__.py` - Module initialization
-- Updated: `src/chatterbox_inference/models/database.py` - Added emotional anchor methods
-- Updated: `src/chatterbox_inference/models/schemas.py` - Added emotional prosody schemas
-- Updated: `src/chatterbox_inference/cli.py` - Added database management commands
+- `src/tts_inference/emotion_map/prompt_templates_seed.sql` - Database seed data (100 prompts)
+- `src/tts_inference/models/migrations.py` - Migration framework
+- `src/tts_inference/emotion_map/migrations_definition.py` - Migration definitions
+- `src/tts_inference/emotion_map/__init__.py` - Module initialization
+- Updated: `src/tts_inference/models/database.py` - Added emotional anchor methods
+- Updated: `src/tts_inference/models/schemas.py` - Added emotional prosody schemas
+- Updated: `src/tts_inference/cli.py` - Added database management commands
 
 **Database State:**
 - Version: 3 (all migrations applied)

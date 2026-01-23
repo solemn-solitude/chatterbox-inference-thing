@@ -1,6 +1,6 @@
-# Chatterbox Inference Client
+# TTS Inference Client
 
-Python client library for connecting to Chatterbox Inference TTS server via HTTP or ZMQ.
+Python client library for connecting to TTS Inference server via HTTP or ZMQ.
 
 ## Installation
 
@@ -13,7 +13,7 @@ pip install -e .
 ### HTTP Client
 
 ```python
-from chatterbox_inference_client import Client
+from tts_inference_client import Client
 
 # Create client
 client = Client.http("http://localhost:20480", api_key="your-api-key")
@@ -49,7 +49,7 @@ client.close()
 ### ZMQ Client
 
 ```python
-from chatterbox_inference_client import Client
+from tts_inference_client import Client
 
 # Create ZMQ client
 client = Client.zmq("tcp://localhost:5555", api_key="your-api-key")
@@ -64,7 +64,7 @@ client.close()
 ### Context Manager
 
 ```python
-from chatterbox_inference_client import Client
+from tts_inference_client import Client
 
 # Automatically closes connection
 with Client.http("http://localhost:20480", "api-key") as client:
@@ -132,7 +132,7 @@ All clients implement these methods:
 ### Save Audio to File
 
 ```python
-from chatterbox_inference_client import Client
+from tts_inference_client import Client
 
 with Client.http("http://localhost:20480", "api-key") as client:
     with open("output.pcm", "wb") as f:
@@ -144,7 +144,7 @@ with Client.http("http://localhost:20480", "api-key") as client:
 
 ```python
 import pyaudio
-from chatterbox_inference_client import Client
+from tts_inference_client import Client
 
 # Setup pyaudio
 p = pyaudio.PyAudio()
@@ -167,7 +167,7 @@ p.terminate()
 ### Voice Cloning Workflow
 
 ```python
-from chatterbox_inference_client import Client
+from tts_inference_client import Client
 
 client = Client.http("http://localhost:20480", "api-key")
 
@@ -206,7 +206,7 @@ client.close()
 ## Error Handling
 
 ```python
-from chatterbox_inference_client import (
+from tts_inference_client import (
     Client,
     AuthenticationError,
     ConnectionError,

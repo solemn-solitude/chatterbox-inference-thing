@@ -1,11 +1,12 @@
 [project]
-name = "chatterbox-inference"
+name = "tts-inference"
 version = "0.1.0"
 description = "TTS inference server with FastAPI and ZMQ streaming support"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "chatterbox-tts>=0.1.6",
+    "qwen-tts>=0.1.0",
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.32.0",
     "websockets>=13.0",
@@ -28,7 +29,7 @@ dependencies = [
 ]
 
 [project.scripts]
-chatterbox-inference = "chatterbox_inference.cli:main"
+tts-inference = "tts_inference.cli:main"
 
 [build-system]
 requires = ["hatchling"]

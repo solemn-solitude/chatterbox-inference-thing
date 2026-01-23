@@ -1,4 +1,4 @@
-# Setup Guide - Chatterbox Inference
+# Setup Guide - TTS Inference
 
 Quick setup guide to get your TTS server running.
 
@@ -46,7 +46,7 @@ source ~/.bashrc
 ### 4. Verify Installation
 
 ```bash
-chatterbox-inference config-info
+tts-inference config-info
 ```
 
 Should show configuration without errors.
@@ -56,7 +56,7 @@ Should show configuration without errors.
 ### FastAPI Server (HTTP/WebSocket)
 
 ```bash
-chatterbox-inference run fastapi
+tts-inference run fastapi
 ```
 
 Server will be available at: `http://localhost:20480`
@@ -66,7 +66,7 @@ Server will be available at: `http://localhost:20480`
 ### ZMQ Server (High Performance)
 
 ```bash
-chatterbox-inference run zmq
+tts-inference run zmq
 ```
 
 Server will listen on: `tcp://*:5555`
@@ -164,42 +164,42 @@ export CHATTERBOX_API_KEY="your-key"
 
 ```bash
 # FastAPI on port 9000
-chatterbox-inference run fastapi --port 9000
+tts-inference run fastapi --port 9000
 
 # ZMQ on port 6666
-chatterbox-inference run zmq --port 6666
+tts-inference run zmq --port 6666
 ```
 
 ### Custom Voice Directory
 
 ```bash
 export CHATTERBOX_VOICE_DIR="/path/to/voices"
-chatterbox-inference run fastapi
+tts-inference run fastapi
 ```
 
 ### Debug Logging
 
 ```bash
-chatterbox-inference run fastapi --log-level DEBUG
+tts-inference run fastapi --log-level DEBUG
 ```
 
 ## Production Deployment
 
 ### Using Systemd
 
-1. Create service file: `/etc/systemd/system/chatterbox-inference.service`
+1. Create service file: `/etc/systemd/system/tts-inference.service`
 
 ```ini
 [Unit]
-Description=Chatterbox Inference TTS Server
+Description=TTS Inference TTS Server
 After=network.target
 
 [Service]
 Type=simple
 User=your-user
-WorkingDirectory=/home/your-user/chatterbox-inference
+WorkingDirectory=/home/your-user/tts-inference
 Environment="CHATTERBOX_API_KEY=your-production-key"
-ExecStart=/usr/local/bin/chatterbox-inference run fastapi
+ExecStart=/usr/local/bin/tts-inference run fastapi
 Restart=always
 RestartSec=10
 
@@ -211,9 +211,9 @@ WantedBy=multi-user.target
 
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl enable chatterbox-inference
-sudo systemctl start chatterbox-inference
-sudo systemctl status chatterbox-inference
+sudo systemctl enable tts-inference
+sudo systemctl start tts-inference
+sudo systemctl status tts-inference
 ```
 
 ### Using Docker (Future)
@@ -226,7 +226,7 @@ WORKDIR /app
 COPY . .
 RUN pip install -e .
 ENV CHATTERBOX_API_KEY=""
-CMD ["chatterbox-inference", "run", "fastapi", "--host", "0.0.0.0"]
+CMD ["tts-inference", "run", "fastapi", "--host", "0.0.0.0"]
 ```
 
 ## Next Steps

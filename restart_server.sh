@@ -1,13 +1,13 @@
 #!/bin/bash
-# Restart chatterbox-inference server
+# Restart tts-inference server
 
-echo "Stopping any existing chatterbox-inference processes..."
-pkill -f "chatterbox-inference" 2>/dev/null || true
+echo "Stopping any existing tts-inference processes..."
+pkill -f "tts-inference" 2>/dev/null || true
 sleep 2
 
-echo "Starting chatterbox-inference server..."
+echo "Starting tts-inference server..."
 export CHATTERBOX_API_KEY="test-key-12345"
-chatterbox-inference run fastapi > /tmp/server.log 2>&1 &
+tts-inference run fastapi > /tmp/server.log 2>&1 &
 
 echo "Server started in background (PID: $!)"
 echo "Waiting for server to initialize..."

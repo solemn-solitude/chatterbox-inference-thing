@@ -1,13 +1,13 @@
-"""Entry point for running Chatterbox Inference directly.
+"""Entry point for running TTS Inference directly.
 
 This allows running the application with:
     python main.py <command>
 
 Or when installed:
-    chatterbox-inference <command>
+    tts-inference <command>
 """
 
-from src.chatterbox_inference.cli import main
+from src.tts_inference.cli import main
 
 if __name__ == "__main__":
     main()

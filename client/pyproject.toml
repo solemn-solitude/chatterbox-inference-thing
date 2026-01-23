@@ -1,7 +1,7 @@
 [project]
-name = "chatterbox-inference-client"
+name = "tts-inference-client"
 version = "0.1.0"
-description = "Client library for Chatterbox Inference TTS server"
+description = "Client library for TTS Inference server"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [

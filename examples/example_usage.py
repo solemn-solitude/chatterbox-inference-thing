@@ -1,4 +1,4 @@
-"""Example usage of Chatterbox Inference client."""
+"""Example usage of TTS Inference client."""
 
 import sys
 import os
@@ -6,8 +6,8 @@ import os
 # Add client to path if not installed
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../client/src'))
 
-from chatterbox_inference_client import Client
-from chatterbox_inference_client.schemas import VoiceConfig
+from tts_inference_client import Client
+from tts_inference_client.schemas import VoiceConfig
 
 
 def example_http_client():
@@ -43,7 +43,7 @@ def example_http_client():
         )
         
         for chunk in client.synthesize(
-            text="Hello! This is a test of the Chatterbox TTS system.",
+            text="Hello! This is a test of the TTS Inference system.",
             voice_mode="default",
             voice_config=voice_config,
             audio_format="pcm"
@@ -150,11 +150,11 @@ def example_context_manager():
 
 def main():
     """Run all examples."""
-    print("\nChatterbox Inference Client Examples")
+    print("\nTTS Inference Client Examples")
     print("=" * 60)
     print("\nMake sure the server is running!")
-    print("  FastAPI: chatterbox-inference run fastapi")
-    print("  ZMQ:     chatterbox-inference run zmq")
+    print("  FastAPI: tts-inference run fastapi")
+    print("  ZMQ:     tts-inference run zmq")
     print()
     
     # Check API key

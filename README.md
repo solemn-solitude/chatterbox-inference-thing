@@ -1,9 +1,11 @@
-# Chatterbox Inference Server
+# TTS Inference Server
 
-A production-ready TTS (Text-to-Speech) inference server with streaming support, built on [Chatterbox TTS](https://github.com/resemble-ai/chatterbox).
+A production-ready TTS (Text-to-Speech) inference server with streaming support, supporting multiple TTS models including Chatterbox and Qwen3-TTS.
 
 ## Features
 
+- **Multiple TTS Models**: Support for ChatterboxTTS and Qwen3-TTS with easy switching
+- **Voice Caching**: Qwen3-TTS caches voice prompts for 3-5x faster subsequent generations
 - **Dual Server Modes**: FastAPI (HTTP/WebSocket) and ZMQ for different use cases
 - **Streaming Audio**: Real-time audio streaming for low latency
 - **Voice Cloning**: Upload and use custom voice references
@@ -30,7 +32,9 @@ A production-ready TTS (Text-to-Speech) inference server with streaming support,
 
 ### Components
 
-- **TTS Engine**: ChatterTTS wrapper with voice cloning
+- **TTS Abstraction**: Unified interface supporting ChatterboxTTS and Qwen3-TTS
+- **ChatterboxTTS Engine**: Original ChatterboxTTS wrapper with turbo support
+- **Qwen3-TTS Engine**: New Qwen3-TTS with voice prompt caching (3-5x faster)
 - **Voice Manager**: Upload, store, and manage voice references
 - **Audio Streaming**: PCM/Vorbis encoding with chunked streaming
 - **Database**: SQLite for voice metadata (sample rates, durations)
@@ -63,18 +67,18 @@ export CHATTERBOX_API_KEY="your-secret-api-key-here"
 
 **FastAPI Mode:**
 ```bash
-chatterbox-inference run fastapi
+tts-inference run fastapi
 ```
 
 **ZMQ Mode:**
 ```bash
-chatterbox-inference run zmq
+tts-inference run zmq
 ```
 
 ### 3. Use Client
 
 ```python
-from chatterbox_inference_client import Client
+from tts_inference_client import Client
 
 # HTTP client
 client = Client.http("http://localhost:20480", api_key="your-api-key")
@@ -94,7 +98,9 @@ client.close()
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `CHATTERBOX_API_KEY` | API key for authentication | *Required* |
-| `CHATTERBOX_VOICE_DIR` | Voice storage directory | `~/.local/share/chatterbox-inference` |
+| `CHATTERBOX_TTS_MODEL` | TTS model: `chatterbox` or `qwen` | `chatterbox` |
+| `CHATTERBOX_QWEN_CACHE_TTL` | Qwen voice cache TTL in minutes | `60` |
+| `CHATTERBOX_VOICE_DIR` | Voice storage directory | `~/.local/share/tts-inference` |
 | `CHATTERBOX_FASTAPI_HOST` | FastAPI bind host | `0.0.0.0` |
 | `CHATTERBOX_FASTAPI_PORT` | FastAPI port | `20480` |
 | `CHATTERBOX_ZMQ_HOST` | ZMQ bind host | `*` |
@@ -105,12 +111,34 @@ client.close()
 
 ```bash
 # View configuration
-chatterbox-inference config-info
+tts-inference config-info
+
+# Run with specific TTS model
+tts-inference run fastapi --model qwen
+tts-inference run zmq --model chatterbox
 
 # Run with custom settings
-chatterbox-inference run fastapi --host 127.0.0.1 --port 8080 --log-level DEBUG
-chatterbox-inference run zmq --port 5556
+tts-inference run fastapi --host 127.0.0.1 --port 8080 --log-level DEBUG
+tts-inference run zmq --port 5556 --model qwen --keep-warm
 ```
+
+### TTS Model Selection
+
+The server supports multiple TTS models via the `CHATTERBOX_TTS_MODEL` environment variable or `--model` CLI option:
+
+**ChatterboxTTS** (Default)
+- High-quality synthesis
+- Voice cloning support
+- Turbo mode available
+- Parameters: `exaggeration`, `cfg_weight`, `temperature`, `repetition_penalty`, `speed`
+
+**Qwen3-TTS**
+- Excellent voice quality with natural language voice descriptions
+- Voice caching for 3-5x faster subsequent generations
+- Support for 10 languages
+- Parameters: `voice_description`, `language`, `max_new_tokens`, `top_p`, `top_k`, `temperature`
+
+See `TTS_ABSTRACTION.md` for detailed usage examples and parameter documentation.
 
 ## API Endpoints (FastAPI)
 
@@ -231,7 +259,7 @@ See `client/README.md` for detailed client documentation.
 ### Quick Example
 
 ```python
-from chatterbox_inference_client import Client
+from tts_inference_client import Client
 
 # HTTP Client
 with Client.http("http://localhost:20480", "api-key") as client:
@@ -253,14 +281,14 @@ with Client.zmq("tcp://localhost:5555", "api-key") as client:
 export CHATTERBOX_API_KEY="test-key"
 
 # Run server in development mode
-chatterbox-inference run fastapi --reload
+tts-inference run fastapi --reload
 ```
 
 ### Project Structure
 
 ```
 tts_test_thing/
-├── src/chatterbox_inference/
+├── src/tts_inference/
 │   ├── auth/           # API key authentication
 │   ├── models/         # Pydantic schemas & database
 │   ├── server/         # FastAPI & ZMQ servers
@@ -268,7 +296,7 @@ tts_test_thing/
 │   ├── utils/          # Config & audio utilities
 │   └── cli.py          # Click CLI
 ├── client/             # Separate client package
-│   └── src/chatterbox_inference_client/
+│   └── src/tts_inference_client/
 │       ├── base.py     # Abstract client
 │       ├── http_client.py
 │       ├── zmq_client.py
@@ -281,7 +309,7 @@ tts_test_thing/
 ### FastAPI with Gunicorn
 
 ```bash
-gunicorn chatterbox_inference.server.fastapi_server:app \
+gunicorn tts_inference.server.fastapi_server:app \
   --workers 4 \
   --worker-class uvicorn.workers.UvicornWorker \
   --bind 0.0.0.0:20480
@@ -291,14 +319,14 @@ gunicorn chatterbox_inference.server.fastapi_server:app \
 
 ```ini
 [Unit]
-Description=Chatterbox Inference Server
+Description=TTS Inference Server
 After=network.target
 
 [Service]
 Type=simple
 User=chatterbox
 Environment="CHATTERBOX_API_KEY=your-secret-key"
-ExecStart=/usr/local/bin/chatterbox-inference run fastapi
+ExecStart=/usr/local/bin/tts-inference run fastapi
 Restart=on-failure
 
 [Install]
@@ -322,7 +350,7 @@ WantedBy=multi-user.target
 ### Connection Timeouts
 
 - Check firewall settings
-- Verify server is running: `chatterbox-inference config-info`
+- Verify server is running: `tts-inference config-info`
 - Increase ZMQ timeout in client code
 
 ## License
