@@ -14,6 +14,34 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/voices", tags=["voices"])
 
 
+async def _raise_if_not_wav(filename: str):
+    if not filename.endswith('.wav'):
+        raise HTTPException(status_code=400, detail="Only WAV files are supported")
+
+
+async def _raise_if_voice_exists(voice_service: VoiceService, voice_id: str):
+    if await voice_service.voice_exists(voice_id):
+        logger.warning(f"Voice '{voice_id}' already exists")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Voice ID '{voice_id}' already exists. Please use a different identifier or delete the existing voice first."
+        )
+
+
+async def _handle_upload_result(success: bool, voice_id: str):
+    if success:
+        return VoiceUploadResponse(
+            success=True,
+            voice_id=voice_id,
+            message=f"Voice '{voice_id}' uploaded successfully"
+        )
+    logger.error(f"Voice upload returned False unexpectedly for {voice_id}")
+    raise HTTPException(
+        status_code=400,
+        detail=f"Failed to upload voice '{voice_id}'. Please try again."
+    )
+
+
 @router.post("/upload", response_model=VoiceUploadResponse)
 async def upload_voice(
     voice_id: str = Form(...),
@@ -25,41 +53,17 @@ async def upload_voice(
     """Upload a voice reference file."""
     logger.info(f"Voice upload request: {voice_id}, sample_rate={sample_rate}")
     
-    # Validate file type
-    if not audio_file.filename.endswith('.wav'):
-        raise HTTPException(status_code=400, detail="Only WAV files are supported")
-    
-    # Check if voice ID already exists
-    if await voice_service.voice_exists(voice_id):
-        logger.warning(f"Voice upload failed: Voice ID '{voice_id}' already exists")
-        raise HTTPException(
-            status_code=400,
-            detail=f"Voice ID '{voice_id}' already exists. Please use a different identifier or delete the existing voice first."
-        )
+    _raise_if_not_wav(audio_file.filename)
+    await _raise_if_voice_exists(voice_service, voice_id)
     
     try:
-        # Upload voice
         success = await voice_service.upload_voice(
             voice_id=voice_id,
             audio_file=audio_file.file,
-            sample_rate=sample_rate
+            sample_rate=sample_rate,
+            voice_transcript=""  # Note: transcript missing in REST, unlike ZMQ
         )
-        
-        if success:
-            return VoiceUploadResponse(
-                success=True,
-                voice_id=voice_id,
-                message=f"Voice '{voice_id}' uploaded successfully"
-            )
-        else:
-            logger.error(f"Voice upload returned False unexpectedly for {voice_id}")
-            raise HTTPException(
-                status_code=400,
-                detail=f"Failed to upload voice '{voice_id}'. Please try again."
-            )
-            
-    except HTTPException:
-        raise
+        return await _handle_upload_result(success, voice_id)
     except ValueError as e:
         logger.warning(f"Validation error uploading voice: {e}")
         raise HTTPException(status_code=400, detail=str(e))
@@ -75,7 +79,17 @@ async def list_voices(
 ):
     """List all uploaded voices."""
     voices_data = await voice_service.list_voices()
-    voices = [VoiceInfo(**voice) for voice in voices_data]
+    voices = [
+        VoiceInfo(
+            voice_id=v.voice_id,
+            filename=v.filename,
+            sample_rate=v.sample_rate,
+            voice_transcript=v.voice_transcript,
+            duration_seconds=v.duration_seconds,
+            uploaded_at=v.uploaded_at or "",
+        )
+        for v in voices_data
+    ]
     
     return VoiceListResponse(
         voices=voices,

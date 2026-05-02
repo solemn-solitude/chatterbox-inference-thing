@@ -21,21 +21,20 @@ class Config:
         
         # API Key
         self.api_key = os.getenv("CHATTERBOX_API_KEY", "")
+
+        # Default voice used when no voice_id is provided in a request
+        self.default_voice_id = os.getenv("CHATTERBOX_DEFAULT_VOICE_ID", "")
         
         # Server settings
         self.fastapi_host = os.getenv("CHATTERBOX_FASTAPI_HOST", "0.0.0.0")
         self.fastapi_port = int(os.getenv("CHATTERBOX_FASTAPI_PORT", "20480"))
         
         # ZMQ settings
-        self.zmq_input_address = os.getenv("TTS_INPUT_ADDRESS", "tcp://localhost:20501")
+        self.zmq_input_address = os.getenv("TTS_INPUT_ADDRESS", "tcp://*:20501")
         self.zmq_pub_address = os.getenv("TTS_PUB_ADDRESS", "")
         
         # Logging
         self.log_level = os.getenv("CHATTERBOX_LOG_LEVEL", "INFO")
-        
-        # TTS Model settings
-        self.tts_model = os.getenv("CHATTERBOX_TTS_MODEL", "chatterbox")  # or "qwen"
-        self.qwen_cache_ttl = int(os.getenv("CHATTERBOX_QWEN_CACHE_TTL", "60"))  # minutes
         
         # Model offloading settings
         self.offload_timeout = int(os.getenv("CHATTERBOX_OFFLOAD_TIMEOUT", "600"))  # 10 minutes default

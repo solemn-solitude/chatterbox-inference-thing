@@ -6,12 +6,10 @@ import logging
 import msgpack
 import zmq
 import zmq.asyncio
+from typing import Optional
 
-from ..models import VoiceDatabase
-from ..auth import verify_api_key_zmq
-from ..tts import get_tts_engine, VoiceManager
-from ..services import VoiceService
 from ..utils.config import CONFIG
+from .common import initialize_server_components, get_model_info
 from .zmq_routes import (
     handle_synthesize,
     handle_list_voices,
@@ -45,38 +43,19 @@ class ZMQServer:
         self.running = False
         
         # Server components
-        self.db: Optional[VoiceDatabase] = None
-        self.voice_manager: Optional[VoiceManager] = None
-        self.voice_service: Optional[VoiceService] = None
+        self.db = None
+        self.voice_manager = None
+        self.voice_service = None
     
     async def initialize(self):
         """Initialize server components."""
         logger.info("Initializing ZMQ server components...")
-        
-        # Validate API key
-        try:
-            CONFIG.validate_api_key()
-        except ValueError as e:
-            logger.error(str(e))
-            raise
-        
-        # Ensure directories exist
-        CONFIG.ensure_directories()
-        
-        # Initialize database
-        self.db = VoiceDatabase(CONFIG.database_path)
-        await self.db.initialize()
-        
-        # Initialize voice manager
-        self.voice_manager = VoiceManager(self.db)
-        
-        # Initialize voice service
-        self.voice_service = VoiceService(self.voice_manager, self.db)
-        
-        # Initialize TTS engine (with config settings)
-        tts_engine = get_tts_engine()
-        await tts_engine.initialize()
-        
+
+        self.db, self.voice_manager, self.voice_service = await initialize_server_components()
+
+        from ..services import get_synthesis_queue
+        get_synthesis_queue()
+
         logger.info("ZMQ server components initialized")
     
     async def start(self):
@@ -165,15 +144,8 @@ class ZMQServer:
                     await self._send_error(identity_frames, "Invalid request format (expected msgpack or JSON)")
                     return
             
-            # Verify API key
-            api_key = request_dict.get("api_key")
-            if not verify_api_key_zmq(api_key):
-                await self._send_error(identity_frames, "Invalid or missing API key")
-                return
-            
-            # Remove api_key from request
             request_dict.pop("api_key", None)
-            
+
             # Determine request type
             request_type = request_dict.pop("type", "synthesize")
             
@@ -238,11 +210,7 @@ class ZMQServer:
             identity_frames: List of identity frames from ROUTER
         """
         try:
-            tts_engine = get_tts_engine()
-            info = {
-                "model": CONFIG.tts_model,
-                "sample_rate": tts_engine.sample_rate if tts_engine.is_loaded() else None
-            }
+            info = get_model_info()
             await self._send_message(identity_frames, b"response", msgpack.packb(info))
             logger.info(f"Sent model info: {info}")
         except Exception as e:
@@ -253,16 +221,19 @@ class ZMQServer:
         """Stop the ZMQ server."""
         logger.info("Stopping ZMQ server...")
         self.running = False
-        
+
+        from ..services import stop_synthesis_queue
+        await stop_synthesis_queue()
+
         if self.socket:
             self.socket.close()
-        
+
         if self.pub_socket:
             self.pub_socket.close()
-        
+
         if self.context:
             self.context.term()
-        
+
         logger.info("ZMQ server stopped")
 
 

@@ -3,7 +3,6 @@
 from .schemas import (
     BaseVoiceConfig,
     ChatterboxVoiceConfig,
-    QwenVoiceConfig,
     TTSRequest,
     VoiceUploadRequest,
     VoiceInfo,
@@ -21,7 +20,6 @@ from .database import VoiceDatabase
 __all__ = [
     "BaseVoiceConfig",
     "ChatterboxVoiceConfig",
-    "QwenVoiceConfig",
     "TTSRequest",
     "VoiceUploadRequest",
     "VoiceInfo",
