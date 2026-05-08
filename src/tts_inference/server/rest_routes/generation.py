@@ -18,16 +18,42 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/tts", tags=["generation"])
 
 
+async def _resolve_voice(
+    request: TTSRequest,
+    voice_service: VoiceService,
+    raise_on_not_found: bool = True,
+) -> tuple:
+    """Return (voice_reference, voice_transcript) for either clone or design mode."""
+    voice_id = request.voice_config.voice_id
+
+    if voice_id:
+        voice_reference = await load_voice_reference_or_raise(
+            voice_service, voice_id, raise_on_not_found=raise_on_not_found
+        )
+        voice_transcript = await voice_service.get_voice_transcript(voice_id) if voice_reference is not None else None
+        return voice_reference, voice_transcript
+
+    if request.voice_description:
+        return None, None
+
+    if raise_on_not_found:
+        raise HTTPException(
+            status_code=400,
+            detail="Provide voice_id (clone mode) or voice_description (OmniVoice design mode)"
+        )
+    return None, None
+
+
 @router.post("/synthesize")
 async def synthesize_tts(
     request: TTSRequest,
     voice_service: VoiceService = Depends(get_voice_service),
     api_key: str = Depends(verify_api_key)
 ):
-    voice_reference = await load_voice_reference_or_raise(voice_service, request.voice_config.voice_id)
+    voice_reference, voice_transcript = await _resolve_voice(request, voice_service)
 
     async def generate_audio():
-        async for chunk in TTSService.encode_audio_stream(request, voice_reference):
+        async for chunk in TTSService.encode_audio_stream(request, voice_reference, voice_transcript):
             yield chunk
 
     output_sr = get_output_sample_rate(request)
@@ -63,16 +89,23 @@ async def websocket_tts(
 
         try:
             request = TTSRequest(**request_data)
-        except Exception as e:
+        except Exception:
             await websocket.send_json({"error": "Invalid request"})
             await websocket.close(code=1003)
             return
 
-        voice_reference = await load_voice_reference_or_raise(
-            voice_service, request.voice_config.voice_id, raise_on_not_found=False
+        voice_reference, voice_transcript = await _resolve_voice(
+            request, voice_service, raise_on_not_found=False
         )
-        if voice_reference is None:
-            await websocket.send_json({"error": f"Voice not found: {request.voice_config.voice_id}"})
+
+        voice_id = request.voice_config.voice_id
+        if voice_id and voice_reference is None:
+            await websocket.send_json({"error": f"Voice not found: {voice_id}"})
+            await websocket.close(code=1003)
+            return
+
+        if not voice_id and not request.voice_description:
+            await websocket.send_json({"error": "Provide voice_id or voice_description"})
             await websocket.close(code=1003)
             return
 
@@ -85,7 +118,9 @@ async def websocket_tts(
         })
 
         encoder = AudioStreamEncoder(request.audio_format, output_sr)
-        async for audio_chunk, sample_rate in TTSService.synthesize_streaming(request, voice_reference):
+        async for audio_chunk, sample_rate in TTSService.synthesize_streaming(
+            request, voice_reference, voice_transcript
+        ):
             encoded_chunk = encoder.encode_chunk(audio_chunk)
             if encoded_chunk:
                 await websocket.send_bytes(encoded_chunk)

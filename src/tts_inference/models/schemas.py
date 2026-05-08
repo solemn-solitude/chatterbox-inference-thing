@@ -42,9 +42,13 @@ class TTSRequest(BaseModel):
     text: str = Field(..., min_length=1, max_length=10000, description="Text to synthesize")
     voice_config: ChatterboxVoiceConfig = Field(default_factory=ChatterboxVoiceConfig, description="Voice configuration")  # type: ignore[call-arg]
     voice_id: str | None = Field(None, description="Shorthand voice ID; merged into voice_config if voice_config.voice_id is not set")
+    voice_description: str | None = Field(None, description="OmniVoice voice design: describe the desired voice (e.g. 'female, British accent')")
+    language: str | None = Field(None, description="BCP-47 language code hint (OmniVoice)")
     audio_format: Literal["pcm", "wav", "vorbis"] = Field("pcm", description="Output audio format")
     sample_rate: int | None = Field(None, ge=20480, le=420480, description="Output sample rate (defaults to model.sr)")
-    use_turbo: bool = Field(False, description="Use ChatterboxTurboTTS")
+    use_turbo: bool = Field(False, description="Use ChatterboxTurboTTS (chatterbox only)")
+    num_step: int = Field(50, ge=1, le=200, description="Diffusion steps (OmniVoice only)")
+    guidance_scale: float = Field(1.0, ge=0.0, le=20.0, description="Classifier-free guidance scale (OmniVoice only)")
 
     @field_validator('text')
     @classmethod

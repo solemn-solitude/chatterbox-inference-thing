@@ -67,3 +67,17 @@ class ChatterboxParams:
     cfg_weight: float
     temperature: float
     repetition_penalty: float
+
+
+@dataclass
+class OmniVoiceParams:
+    text: str
+    voice_id: str | None
+    voice_reference: np.ndarray | None
+    voice_transcript: str | None
+    voice_description: str | None
+    speed: float
+    sample_rate: int | None
+    language: str | None
+    num_step: int
+    guidance_scale: float

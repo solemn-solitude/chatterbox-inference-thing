@@ -38,9 +38,13 @@ async def initialize_server_components() -> tuple[VoiceDatabase, VoiceManager, V
 
 async def load_voice_reference_or_raise(
     voice_service: VoiceService,
-    voice_id: str,
+    voice_id: str | None,
     raise_on_not_found: bool = True
 ) -> np.ndarray | None:
+    if not voice_id:
+        if raise_on_not_found:
+            raise ValueError("No voice_id provided")
+        return None
     voice_reference = await voice_service.load_voice_reference(voice_id)
     if voice_reference is None and raise_on_not_found:
         raise ValueError(f"Voice not found: {voice_id}")
@@ -55,6 +59,6 @@ def get_output_sample_rate(request: TTSRequest) -> int:
 def get_model_info() -> dict:
     tts_engine = get_tts_engine()
     return {
-        "model": "chatterbox",
+        "model": CONFIG.tts_engine,
         "sample_rate": tts_engine.sample_rate if tts_engine.is_loaded() else None
     }

@@ -25,17 +25,17 @@ logger = logging.getLogger(__name__)
 
 class ZMQServer:
     """ZMQ ROUTER server for TTS streaming."""
-    
-    def __init__(self, input_address: str = "tcp://localhost:20501", enable_pub: bool = False, pub_address: str = ""):
+
+    def __init__(self, input_address: str = "tcp://localhost:20501", pub_address: str = ""):
         """Initialize ZMQ server.
-        
+
         Args:
             input_address: Address to bind the input ROUTER socket to
-            enable_pub: Whether to enable PUB socket for broadcasting
-            pub_address: Address to bind the PUB socket to (required if enable_pub is True)
+            pub_address: Address to bind the PUB socket to. When set, all audio frames are
+                broadcast to subscribers; error and complete frames are also ACKed back to
+                the requesting DEALER via ROUTER. When empty, all frames go via ROUTER only.
         """
         self.input_address = input_address
-        self.enable_pub = enable_pub
         self.pub_address = pub_address
         self.context: Optional[zmq.asyncio.Context] = None
         self.socket: Optional[zmq.asyncio.Socket] = None
@@ -70,12 +70,7 @@ class ZMQServer:
         self.socket.bind(self.input_address)
         logger.info(f"ZMQ ROUTER server listening on {self.input_address}")
         
-        # Optionally create and bind PUB socket
-        if self.enable_pub:
-            if not self.pub_address:
-                logger.error("PUB socket enabled but no address provided")
-                raise ValueError("TTS_PUB_ADDRESS must be set when using --enable-pub")
-            
+        if self.pub_address:
             self.pub_socket = self.context.socket(zmq.PUB)
             self.pub_socket.bind(self.pub_address)
             logger.info(f"ZMQ PUB socket broadcasting on {self.pub_address}")
@@ -179,18 +174,20 @@ class ZMQServer:
             await self._send_error(identity_frames, str(e))
     
     async def _send_message(self, identity_frames: list, msg_type: bytes, data: bytes):
-        """Send a message to a client or broadcast via PUB socket.
-        
-        Args:
-            identity_frames: List of identity frames from ROUTER (for routing back to client)
-            msg_type: Message type identifier
-            data: Message payload
+        """Send a message to subscribers and/or back to the requesting DEALER.
+
+        When a PUB socket is configured: all frames are broadcast to every subscriber,
+        and error/complete frames are also ACKed back to the requesting DEALER via ROUTER
+        so the upstream caller (e.g. LLM) can observe failures and completion.
+
+        Without a PUB socket: all frames go back to the requesting DEALER via ROUTER only.
         """
-        if self.enable_pub:
-            # When PUB is enabled, only broadcast (don't send back via ROUTER)
+        if self.pub_socket is not None:
             await self.pub_socket.send_multipart([msg_type, data])
-        else:
-            # Normal ROUTER response: identity_frames + [msg_type, data]
+        # metadata and audio are stream-only — no value routing them back to the requester.
+        # Everything else (complete, error, response) routes back via ROUTER so that
+        # request/response callers (e.g. the network router) receive their reply.
+        if self.pub_socket is None or msg_type not in (b"metadata", b"audio"):
             await self.socket.send_multipart(identity_frames + [msg_type, data])
     
     async def _send_error(self, identity_frames: list, error_msg: str):
@@ -237,15 +234,14 @@ class ZMQServer:
         logger.info("ZMQ server stopped")
 
 
-async def run_zmq_server(input_address: str = "tcp://localhost:20501", enable_pub: bool = False, pub_address: str = ""):
+async def run_zmq_server(input_address: str = "tcp://localhost:20501", pub_address: str = ""):
     """Run the ZMQ server.
-    
+
     Args:
         input_address: Address to bind the input ROUTER socket to
-        enable_pub: Whether to enable PUB socket for broadcasting
-        pub_address: Address to bind the PUB socket to
+        pub_address: Address to bind the PUB socket to (empty string disables PUB)
     """
-    server = ZMQServer(input_address, enable_pub, pub_address)
+    server = ZMQServer(input_address, pub_address)
     
     try:
         await server.start()

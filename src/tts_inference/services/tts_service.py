@@ -15,6 +15,8 @@ from .synthesis_queue import get_synthesis_queue
 
 logger = logging.getLogger(__name__)
 
+logger = logging.getLogger(__name__)
+
 
 class TTSService:
     """Service for TTS synthesis operations."""
@@ -35,19 +37,48 @@ class TTSService:
         }
 
     @staticmethod
+    def _omnivoice_params(
+        request: TTSRequest,
+        voice_reference: np.ndarray | None,
+        voice_transcript: str | None = None,
+    ) -> dict:
+        return {
+            "text": request.text,
+            "voice_id": request.voice_config.voice_id,
+            "voice_reference": voice_reference,
+            "voice_transcript": voice_transcript,
+            "voice_description": request.voice_description,
+            "speed": request.voice_config.speed,
+            "sample_rate": request.sample_rate,
+            "language": request.language,
+            "num_step": request.num_step,
+            "guidance_scale": request.guidance_scale,
+        }
+
+    @staticmethod
+    def _build_params(
+        request: TTSRequest,
+        voice_reference: np.ndarray | None,
+        voice_transcript: str | None = None,
+    ) -> dict:
+        if CONFIG.tts_engine == "omnivoice":
+            return TTSService._omnivoice_params(request, voice_reference, voice_transcript)
+        return TTSService._chatterbox_params(request, voice_reference)
+
+    @staticmethod
     async def synthesize_streaming(
         request: TTSRequest,
-        voice_reference: np.ndarray,
+        voice_reference: np.ndarray | None,
         voice_transcript: str | None = None,
     ):
-        params = TTSService._chatterbox_params(request, voice_reference)
+        params = TTSService._build_params(request, voice_reference, voice_transcript)
         async for chunk, sr in get_synthesis_queue().submit(params):
             yield chunk, sr
 
     @staticmethod
     async def encode_audio_stream(
         request: TTSRequest,
-        voice_reference: np.ndarray,
+        voice_reference: np.ndarray | None,
         voice_transcript: str | None = None
     ):
         output_sr = request.sample_rate or get_tts_engine().sample_rate

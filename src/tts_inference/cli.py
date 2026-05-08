@@ -34,9 +34,10 @@ def run():
 @click.option("--reload", is_flag=True, help="Enable auto-reload for development")
 @click.option("--offload-timeout", default=None, type=int, help="Seconds of inactivity before offloading model (default: 600)")
 @click.option("--keep-warm", is_flag=True, help="Keep model loaded in memory (disable auto-offloading)")
-def fastapi(host, port, log_level, reload, offload_timeout, keep_warm):
+@click.option("--engine", default=None, type=click.Choice(["chatterbox", "omnivoice"]), help="TTS engine to use (default: from TTS_ENGINE env or chatterbox)")
+def fastapi(host, port, log_level, reload, offload_timeout, keep_warm, engine):
     """Run FastAPI HTTP/WebSocket server."""
-    _apply_config_overrides(log_level=log_level, host=host, port=port, offload_timeout=offload_timeout, keep_warm=keep_warm)
+    _apply_config_overrides(log_level=log_level, host=host, port=port, offload_timeout=offload_timeout, keep_warm=keep_warm, engine=engine)
     setup_logging(CONFIG.log_level)
 
     logger = logging.getLogger(__name__)
@@ -55,35 +56,40 @@ def fastapi(host, port, log_level, reload, offload_timeout, keep_warm):
 
 
 @run.command()
-@click.option("--input-address", default=None, help="Input ROUTER address")
-@click.option("--enable-pub", is_flag=True, help="Enable PUB socket for broadcasting")
+@click.option("--input-address", default=None, help="Input ROUTER address (overrides TTS_INPUT_ADDRESS)")
+@click.option("--pub-address", default=None, help="PUB broadcast address (overrides TTS_PUB_ADDRESS; pass '' to disable)")
 @click.option("--log-level", default=None, help="Log level (default: from env or INFO)")
 @click.option("--offload-timeout", default=None, type=int, help="Seconds of inactivity before offloading model (default: 600)")
 @click.option("--keep-warm", is_flag=True, help="Keep model loaded in memory")
-def zmq(input_address, enable_pub, log_level, offload_timeout, keep_warm):
-    """Run ZMQ ROUTER server."""
-    _apply_config_overrides(log_level=log_level, offload_timeout=offload_timeout, keep_warm=keep_warm)
+@click.option("--engine", default=None, type=click.Choice(["chatterbox", "omnivoice"]), help="TTS engine to use (default: from TTS_ENGINE env or chatterbox)")
+def zmq(input_address, pub_address, log_level, offload_timeout, keep_warm, engine):
+    """Run ZMQ ROUTER server.
+
+    PUB broadcasting is on by default (TTS_PUB_ADDRESS defaults to tcp://*:20502).
+    All audio frames are broadcast to SUB subscribers; error and complete frames are
+    also ACKed back to the requesting DEALER so upstream callers can observe failures.
+    Set TTS_PUB_ADDRESS='' or pass --pub-address='' to disable PUB and route everything
+    back via ROUTER only.
+    """
+    _apply_config_overrides(log_level=log_level, offload_timeout=offload_timeout, keep_warm=keep_warm, engine=engine)
     setup_logging(CONFIG.log_level)
 
     logger = logging.getLogger(__name__)
     logger.info("Starting TTS Inference in ZMQ mode")
 
     zmq_input = input_address or CONFIG.zmq_input_address
-    logger.info(f"Input address: {zmq_input}")
+    zmq_pub = pub_address if pub_address is not None else CONFIG.zmq_pub_address
 
-    zmq_pub = ""
-    if enable_pub:
-        zmq_pub = CONFIG.zmq_pub_address
-        if not zmq_pub:
-            logger.error("--enable-pub specified but TTS_PUB_ADDRESS not set")
-            click.echo("Error: TTS_PUB_ADDRESS must be set when using --enable-pub", err=True)
-            sys.exit(1)
+    logger.info(f"Input address: {zmq_input}")
+    if zmq_pub:
         logger.info(f"PUB address: {zmq_pub}")
+    else:
+        logger.info("PUB broadcasting disabled — responses routed via ROUTER only")
 
     _validate_api_key(logger)
 
     try:
-        asyncio.run(run_zmq_server(zmq_input, enable_pub, zmq_pub))
+        asyncio.run(run_zmq_server(zmq_input, zmq_pub))
     except KeyboardInterrupt:
         logger.info("Received interrupt signal, shutting down")
     except Exception as e:
@@ -91,7 +97,7 @@ def zmq(input_address, enable_pub, log_level, offload_timeout, keep_warm):
         sys.exit(1)
 
 
-def _apply_config_overrides(log_level=None, host=None, port=None, offload_timeout=None, keep_warm=None):
+def _apply_config_overrides(log_level=None, host=None, port=None, offload_timeout=None, keep_warm=None, engine=None):
     if log_level:
         CONFIG.log_level = log_level
     if host:
@@ -102,6 +108,8 @@ def _apply_config_overrides(log_level=None, host=None, port=None, offload_timeou
         CONFIG.offload_timeout = offload_timeout
     if keep_warm:
         CONFIG.keep_warm = True
+    if engine:
+        CONFIG.tts_engine = engine
 
 
 def _validate_api_key(logger):
@@ -162,6 +170,7 @@ def config_info():
     click.echo(dedent(f"""\
         TTS Inference Configuration
         ========================================
+        Engine: {CONFIG.tts_engine}
         Voice Directory: {CONFIG.voice_dir}
         Voice Audio Directory: {CONFIG.voice_audio_dir}
         Database Path: {CONFIG.database_path}
