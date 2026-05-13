@@ -47,7 +47,7 @@ def fastapi(host, port, log_level, reload, offload_timeout, keep_warm, engine):
     _validate_api_key(logger)
 
     uvicorn.run(
-        "tts_inference.server.fastapi_server:app",
+        "tts.server.fastapi_server:app",
         host=CONFIG.fastapi_host,
         port=CONFIG.fastapi_port,
         reload=reload,

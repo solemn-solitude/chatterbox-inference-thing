@@ -15,9 +15,9 @@ from fish_speech.models.text2semantic.inference import launch_thread_safe_queue
 from fish_speech.models.dac.inference import load_model as load_decoder_model
 from fish_speech.utils.schema import ServeReferenceAudio, ServeTTSRequest
 
-from tts_inference.tts.base_tts import BaseTTSEngine
-from tts_inference.utils.audio_utils import encode_wav_complete
-from tts_inference.utils.config import CONFIG
+from tts.tts.base_tts import BaseTTSEngine
+from tts.utils.audio_utils import encode_wav_complete
+from tts.utils.config import CONFIG
 
 logger = logging.getLogger(__name__)
 

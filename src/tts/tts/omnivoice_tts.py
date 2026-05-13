@@ -13,8 +13,8 @@ import torch
 
 from omnivoice import OmniVoice
 
-from tts_inference.tts.base_tts import BaseTTSEngine
-from tts_inference.utils.audio_utils import encode_wav_complete
+from tts.tts.base_tts import BaseTTSEngine
+from tts.utils.audio_utils import encode_wav_complete
 
 logger = logging.getLogger(__name__)
 

@@ -1,25 +1,25 @@
 """TTS Engine singleton."""
 
 import logging
-from tts_inference.tts.base_tts import BaseTTSEngine
-from tts_inference.utils.config import CONFIG
+from tts.tts.base_tts import BaseTTSEngine
+from tts.utils.config import CONFIG
 
 try:
-    from tts_inference.tts.chatterbox_tts import ChatterboxTTSEngine
+    from tts.tts.chatterbox_tts import ChatterboxTTSEngine
     CHATTERBOX_AVAILABLE = True
 except ImportError:
     CHATTERBOX_AVAILABLE = False
     ChatterboxTTSEngine = None
 
 try:
-    from tts_inference.tts.omnivoice_tts import OmniVoiceTTSEngine
+    from tts.tts.omnivoice_tts import OmniVoiceTTSEngine
     OMNIVOICE_AVAILABLE = True
 except ImportError:
     OMNIVOICE_AVAILABLE = False
     OmniVoiceTTSEngine = None
 
 try:
-    from tts_inference.tts.fish_speech_tts import FishSpeechTTSEngine
+    from tts.tts.fish_speech_tts import FishSpeechTTSEngine
     FISH_SPEECH_AVAILABLE = True
 except ImportError:
     FISH_SPEECH_AVAILABLE = False

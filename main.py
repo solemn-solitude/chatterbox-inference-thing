@@ -7,7 +7,7 @@ Or when installed:
     tts-inference <command>
 """
 
-from src.tts_inference.cli import main
+from src.tts.cli import main
 
 if __name__ == "__main__":
     main()

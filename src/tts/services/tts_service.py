@@ -4,15 +4,15 @@ from pathlib import Path
 import logging
 import numpy as np
 
-from tts_inference.tts import get_tts_engine
-from tts_inference.tts.voice_manager import VoiceManager
-from tts_inference.models import TTSRequest
-from tts_inference.models.schemas import ChatterboxVoiceConfig, OmniVoiceVoiceConfig, FishSpeechVoiceConfig
-from tts_inference.models.database import VoiceDatabase
-from tts_inference.utils.audio_utils import AudioStreamEncoder
-from tts_inference.utils.config import CONFIG
-from tts_inference.models.service_dataclasses import TestSamplesResult, TestSamplesFile
-from tts_inference.services.synthesis_queue import get_synthesis_queue
+from tts.tts import get_tts_engine
+from tts.tts.voice_manager import VoiceManager
+from tts.models import TTSRequest
+from tts.models.schemas import ChatterboxVoiceConfig, OmniVoiceVoiceConfig, FishSpeechVoiceConfig
+from tts.models.database import VoiceDatabase
+from tts.utils.audio_utils import AudioStreamEncoder
+from tts.utils.config import CONFIG
+from tts.models.service_dataclasses import TestSamplesResult, TestSamplesFile
+from tts.services.synthesis_queue import get_synthesis_queue
 
 logger = logging.getLogger(__name__)
 

@@ -33,7 +33,7 @@ fish-speech = [
 ]
 
 [project.scripts]
-tts-inference = "tts_inference.cli:main"
+tts-inference = "tts.cli:main"
 
 [tool.uv]
 conflicts = [
